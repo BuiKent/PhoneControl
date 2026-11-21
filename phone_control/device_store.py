@@ -11,6 +11,10 @@ from pathlib import Path
 from typing import Any
 
 
+VALID_QUALITIES = ("balanced", "high", "lite")
+VALID_SWIPE_STEPS = ("short", "medium", "long")
+VALID_ZOOM_MODES = ("fit", "fill", "50", "75", "100", "125", "150")
+
 DEFAULT_SETTINGS: dict[str, Any] = {
     "quality": "balanced",  # balanced (8M/60fps) | high (16M/60fps) | lite (4M/30fps)
     "turn_screen_off": False,
@@ -18,6 +22,10 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "always_on_top": False,
     "enable_audio": True,
     "auto_mirror_saved": False,
+    "swipe_step": "medium",
+    "zoom_mode": "fit",
+    "sidebar_collapsed": False,
+    "embedded_workspace": True,
     "screenshot_dir": "",
 }
 
@@ -42,7 +50,7 @@ class DeviceStore:
     def __init__(self, config_path: Path | None = None) -> None:
         self.config_path = Path(config_path) if config_path else default_config_path()
         self._data: dict[str, Any] = {
-            "version": 1,
+            "version": 2,
             "settings": deepcopy(DEFAULT_SETTINGS),
             "devices": {},
         }
@@ -64,7 +72,16 @@ class DeviceStore:
                 for key in DEFAULT_SETTINGS:
                     if key in raw["settings"]:
                         merged_settings[key] = raw["settings"][key]
+            if merged_settings["quality"] not in VALID_QUALITIES:
+                merged_settings["quality"] = DEFAULT_SETTINGS["quality"]
+            if merged_settings["swipe_step"] not in VALID_SWIPE_STEPS:
+                merged_settings["swipe_step"] = DEFAULT_SETTINGS["swipe_step"]
+            if str(merged_settings["zoom_mode"]) not in VALID_ZOOM_MODES:
+                merged_settings["zoom_mode"] = DEFAULT_SETTINGS["zoom_mode"]
+            else:
+                merged_settings["zoom_mode"] = str(merged_settings["zoom_mode"])
             self._data["settings"] = merged_settings
+
             devices = raw.get("devices")
             self._data["devices"] = devices if isinstance(devices, dict) else {}
         self._ensure_screenshot_dir_default()
@@ -102,8 +119,15 @@ class DeviceStore:
         for key, value in patch.items():
             if key not in DEFAULT_SETTINGS:
                 continue
-            if key == "quality" and value not in ("balanced", "high", "lite"):
+            if key == "quality" and value not in VALID_QUALITIES:
                 continue
+            if key == "swipe_step" and value not in VALID_SWIPE_STEPS:
+                continue
+            if key == "zoom_mode":
+                val_str = str(value)
+                if val_str not in VALID_ZOOM_MODES:
+                    continue
+                value = val_str
             settings[key] = value
         self._ensure_screenshot_dir_default()
         self.save()
@@ -122,6 +146,8 @@ class DeviceStore:
         android_version: str = "",
         wifi_ip: str = "",
         transport: str = "usb",
+        screen_width: int = 0,
+        screen_height: int = 0,
     ) -> dict[str, Any]:
         now = datetime.now(timezone.utc).isoformat()
         existing = self._data["devices"].get(device_id, {})
@@ -134,6 +160,8 @@ class DeviceStore:
             "android_version": android_version or existing.get("android_version", ""),
             "wifi_ip": wifi_ip or existing.get("wifi_ip", ""),
             "last_transport": transport or existing.get("last_transport", "usb"),
+            "screen_width": screen_width or existing.get("screen_width", 0),
+            "screen_height": screen_height or existing.get("screen_height", 0),
             "auto_mirror": bool(existing.get("auto_mirror", False)),
             "first_seen": existing.get("first_seen", now),
             "last_seen": now,

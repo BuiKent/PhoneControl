@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import os
+import threading
 from pathlib import Path
 from typing import Any
 
 from .adb_service import AdbScrcpyService
 from .device_store import DeviceStore
+from .window_host import Win32WindowHost
 
 
 def _ok(data: Any = None) -> dict[str, Any]:
@@ -25,14 +27,23 @@ class PhoneControlAPI:
         self,
         service: AdbScrcpyService | None = None,
         store: DeviceStore | None = None,
+        window_host: Win32WindowHost | None = None,
     ) -> None:
         self.service = service or AdbScrcpyService()
         self.store = store or DeviceStore()
+        self.window_host = window_host or Win32WindowHost()
         self._window: Any = None
         self._seen_online_ids: set[str] = set()
+        self._is_fullscreen: bool = False
 
-    def attach_window(self, window: Any) -> None:
+    def attach_window(self, window: Any, title: str = "") -> None:
         self._window = window
+        if title:
+            self.window_host.set_owner_title(title)
+
+    def shutdown(self) -> None:
+        self.window_host.stop_tracking()
+        self.service.stop_all_mirrors()
 
     def get_initial_state(self) -> dict[str, Any]:
         try:
@@ -74,6 +85,8 @@ class PhoneControlAPI:
                         android_version=dev.get("android_version", ""),
                         wifi_ip=dev.get("wifi_ip", ""),
                         transport=dev.get("transport", "usb"),
+                        screen_width=int(dev.get("screen_width") or 0),
+                        screen_height=int(dev.get("screen_height") or 0),
                     )
                     current_online_ids.add(hw_id)
 
@@ -87,9 +100,10 @@ class PhoneControlAPI:
                     if should_auto:
                         try:
                             title = self._display_title(saved, dev)
-                            self.service.start_mirror(dev["serial"], title=title, settings=settings)
-                            dev["mirroring"] = True
-                            auto_mirrored.append(dev["serial"])
+                            res = self.start_mirror(dev["serial"], title)
+                            if res["ok"]:
+                                dev["mirroring"] = True
+                                auto_mirrored.append(dev["serial"])
                         except Exception:
                             pass
 
@@ -107,6 +121,9 @@ class PhoneControlAPI:
                         "manufacturer": dev.get("manufacturer") or (saved.get("manufacturer", "") if saved else ""),
                         "android_version": dev.get("android_version") or (saved.get("android_version", "") if saved else ""),
                         "battery": dev.get("battery"),
+                        "screen_width": int(dev.get("screen_width") or (saved.get("screen_width", 0) if saved else 0) or 1080),
+                        "screen_height": int(dev.get("screen_height") or (saved.get("screen_height", 0) if saved else 0) or 2340),
+                        "show_touches": bool(dev.get("show_touches", False)),
                         "wifi_ip": dev.get("wifi_ip") or (saved.get("wifi_ip", "") if saved else ""),
                         "mirroring": bool(dev.get("mirroring", False)),
                         "saved": saved is not None,
@@ -115,7 +132,6 @@ class PhoneControlAPI:
                     }
                 )
 
-            # Append saved-but-disconnected devices so users can reconnect via Wi-Fi or see history
             for hw_id, saved in saved_map.items():
                 if hw_id in seen_saved_ids:
                     continue
@@ -135,6 +151,9 @@ class PhoneControlAPI:
                         "manufacturer": saved.get("manufacturer", ""),
                         "android_version": saved.get("android_version", ""),
                         "battery": None,
+                        "screen_width": int(saved.get("screen_width", 0) or 1080),
+                        "screen_height": int(saved.get("screen_height", 0) or 2340),
+                        "show_touches": False,
                         "wifi_ip": saved.get("wifi_ip", ""),
                         "mirroring": False,
                         "saved": True,
@@ -144,7 +163,6 @@ class PhoneControlAPI:
                 )
 
             self._seen_online_ids = current_online_ids
-            # Sort: online first, then unauthorized, then saved disconnected
             order = {"device": 0, "authorizing": 1, "unauthorized": 2, "offline": 3, "disconnected": 4}
             merged.sort(key=lambda d: (order.get(d["state"], 5), d["display_name"].lower()))
             return _ok({"devices": merged, "auto_mirrored": auto_mirrored})
@@ -168,11 +186,42 @@ class PhoneControlAPI:
         mdl = dev.get("model") or (saved.get("model", "") if saved else "")
         return self._format_model_name(mfr, mdl, dev["serial"])
 
-    def start_mirror(self, serial: str, display_name: str = "") -> dict[str, Any]:
+    def start_mirror(
+        self,
+        serial: str,
+        display_name: str = "",
+        initial_slot: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         try:
             settings = self.store.get_settings()
-            title = f"{display_name or serial} — Phone Control"
-            res = self.service.start_mirror(serial, title=title, settings=settings)
+            embedded = bool(settings.get("embedded_workspace", True))
+            title_token = f"PC_SLOT_{serial}" if embedded else f"{display_name or serial} — Phone Control"
+
+            initial_rect: dict[str, int] | None = None
+            if embedded and isinstance(initial_slot, dict):
+                origin = self.window_host.get_client_origin()
+                if origin:
+                    initial_rect = {
+                        "x": origin[0] + int(round(float(initial_slot.get("x", 0)))),
+                        "y": origin[1] + int(round(float(initial_slot.get("y", 0)))),
+                        "width": max(120, int(round(float(initial_slot.get("width", 360))))),
+                        "height": max(200, int(round(float(initial_slot.get("height", 700))))),
+                    }
+
+            res = self.service.start_mirror(
+                serial,
+                title=title_token,
+                settings=settings,
+                borderless=embedded,
+                initial_rect=initial_rect,
+            )
+            if embedded and res.get("pid"):
+                # Dock asynchronously so UI stays responsive while scrcpy creates its SDL window
+                threading.Thread(
+                    target=self.window_host.register_mirror,
+                    args=(serial, int(res["pid"]), title_token),
+                    daemon=True,
+                ).start()
             return _ok(res)
         except Exception as exc:
             return _err(exc)
@@ -180,7 +229,97 @@ class PhoneControlAPI:
     def stop_mirror(self, serial: str) -> dict[str, Any]:
         try:
             stopped = self.service.stop_mirror(serial)
+            self.window_host.unregister_mirror(serial)
             return _ok({"serial": serial, "stopped": stopped})
+        except Exception as exc:
+            return _err(exc)
+
+    def stop_all_mirrors(self) -> dict[str, Any]:
+        try:
+            for serial in self.service.get_active_mirrors():
+                self.window_host.unregister_mirror(serial)
+            self.service.stop_all_mirrors()
+            return _ok({"stopped_all": True})
+        except Exception as exc:
+            return _err(exc)
+
+    def sync_mirror_slots(self, slots: list[dict[str, Any]]) -> dict[str, Any]:
+        try:
+            res = self.window_host.sync_slots(slots or [])
+            return _ok(res)
+        except Exception as exc:
+            return _err(exc)
+
+    def set_workspace_overlay_visible(self, visible: bool) -> dict[str, Any]:
+        try:
+            self.window_host.set_overlay_visible(bool(visible))
+            return _ok({"visible": bool(visible)})
+        except Exception as exc:
+            return _err(exc)
+
+    def toggle_fullscreen(self) -> dict[str, Any]:
+        try:
+            if self._window and hasattr(self._window, "toggle_fullscreen"):
+                self._window.toggle_fullscreen()
+                self._is_fullscreen = not self._is_fullscreen
+            return _ok({"fullscreen": self._is_fullscreen})
+        except Exception as exc:
+            return _err(exc)
+
+    def set_display_power(self, serial: str, on: bool) -> dict[str, Any]:
+        try:
+            res = self.service.set_display_power(serial, on=bool(on))
+            return _ok(res)
+        except Exception as exc:
+            return _err(exc)
+
+    def set_show_touches(self, serial: str, enabled: bool) -> dict[str, Any]:
+        try:
+            res = self.service.set_show_touches(serial, bool(enabled))
+            return _ok(res)
+        except Exception as exc:
+            return _err(exc)
+
+    def swipe(self, serial: str, direction: str, step: str = "") -> dict[str, Any]:
+        try:
+            chosen_step = step or self.store.get_settings().get("swipe_step", "medium")
+            res = self.service.swipe(serial, direction, step=chosen_step)
+            return _ok(res)
+        except Exception as exc:
+            return _err(exc)
+
+    def tap_center(self, serial: str) -> dict[str, Any]:
+        try:
+            res = self.service.tap_center(serial)
+            return _ok(res)
+        except Exception as exc:
+            return _err(exc)
+
+    def open_app_drawer(self, serial: str) -> dict[str, Any]:
+        try:
+            res = self.service.open_app_drawer(serial)
+            return _ok(res)
+        except Exception as exc:
+            return _err(exc)
+
+    def launch_quick_app(self, serial: str, app_key: str) -> dict[str, Any]:
+        try:
+            res = self.service.launch_quick_app(serial, app_key)
+            return _ok(res)
+        except Exception as exc:
+            return _err(exc)
+
+    def list_apps(self, serial: str, force_refresh: bool = False) -> dict[str, Any]:
+        try:
+            apps = self.service.list_installed_apps(serial, force_refresh=bool(force_refresh))
+            return _ok({"apps": apps})
+        except Exception as exc:
+            return _err(exc)
+
+    def launch_package(self, serial: str, package_name: str) -> dict[str, Any]:
+        try:
+            res = self.service.launch_package(serial, package_name)
+            return _ok(res)
         except Exception as exc:
             return _err(exc)
 
@@ -294,7 +433,11 @@ class PhoneControlAPI:
                 return _err("Cửa sổ ứng dụng chưa sẵn sàng.")
             import webview
 
-            selected = self._window.create_file_dialog(webview.FileDialog.OPEN)
+            self.window_host.set_overlay_visible(False)
+            try:
+                selected = self._window.create_file_dialog(webview.FileDialog.OPEN)
+            finally:
+                self.window_host.set_overlay_visible(True)
             if not selected:
                 return _ok({"cancelled": True})
             file_path = selected[0] if isinstance(selected, (list, tuple)) else str(selected)

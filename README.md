@@ -1,29 +1,35 @@
-# Phone Control
+# Phone Control v2
 
-Lightweight Windows desktop control panel for **`scrcpy`** and **ADB** — built with Python + `pywebview` (native Edge WebView2, zero Electron overhead).
+Lightweight Windows desktop control studio for **`scrcpy`** and **ADB** — built with Python + `pywebview` (native Edge WebView2, zero Electron overhead).
 
-Designed as a compact side-panel companion to `scrcpy` so you can auto-detect multiple Samsung / Android phones (USB & Wi-Fi), launch smooth 60fps mirroring, take instant full-resolution screenshots straight to your clipboard, and control hardware keys in one click.
+Combines a collapsible control sidebar on the left with an auto-arranging multi-phone mirroring workspace on the right in **one unified window**, supporting multiple Samsung / Android devices simultaneously over USB or Wi-Fi.
 
 ---
 
-## Features
+## What's New in v2.0
 
-- **Multi-Device Auto-Detection & Saved Profiles**: Polls ADB automatically, merges live USB/Wi-Fi devices with saved device profiles (stored in `%LOCALAPPDATA%\PhoneControl\config.json`), supports custom nicknames, battery & Android version readout.
-- **Auto-Mirror on Plug-In**: Optional toggle to automatically open `scrcpy` whenever a previously saved device connects.
-- **One-Click Screen Mirroring (`scrcpy` v5+)**:
-  - 3 quality presets: **Lite** (`4M / 30fps / 1280px`), **Balanced** (`8M / 60fps`), **High** (`16M / 60fps`).
-  - Quick toggles: *Turn phone screen off*, *Stay awake*, *Always on top*, *Audio forwarding*.
-- **Full-Resolution Screenshot + Clipboard Copy**: Captures native PNG via `adb exec-out screencap -p`, validates the PNG header (detecting `FLAG_SECURE` screens), saves to `Pictures\PhoneControl`, and copies directly to the Windows Clipboard (`CF_DIB`) for instant `Ctrl+V` pasting.
-- **Hardware & Navigation Remote Pad**: Back, Home, Recents, Volume −/+, Mute, Power, Notification Shade, Screen Rotation, Push File / Install APK, and Open Screenshots Folder.
-- **Seamless Wi-Fi Mode**: Convert a USB-connected phone to wireless ADB (`tcpip 5555`) in one click, reconnect saved Wi-Fi IPs, or pair Android 11+ devices with pairing codes (`adb pair`).
+- **Unified Split-Screen Workspace**: Borderless `scrcpy` windows dock seamlessly into the right-hand workspace pane via Win32 owned-window synchronization (`window_host.py`). Collapse the left control sidebar anytime (`Ctrl+B`) to maximize screen space.
+- **Parallel Multi-Phone Auto-Grid + 7 Zoom Levels**: Mirror 1, 2, 3, 4, or more phones simultaneously. Automatic aspect-ratio-preserving grid layout maximizes visible screen area on desktop, plus quick Zoom presets (**Auto Fit**, **50%**, **75%**, **100%**, **125%**, **150%**, **Fill**) and a built-in **Demo Grid (2 / 3 / 4 / 6 devices)** preview.
+- **Live Physical Screen Off / On (Anytime)**: Turn off the physical phone display *mid-session* (even if accidentally woken) while keeping full PC mirroring & control via a lightweight headless `scrcpy` helper, plus one-click wake back on.
+- **Touch Swipe Pad & White Touch Dot**: Directional swipe buttons (Up / Down / Left / Right / Center Tap) with adjustable swipe stride (*Short / Medium / Long*) for precise scrolling without trackpad overshoot, plus a lightweight native white touch-indicator toggle (`show_touches`).
+- **All Apps Drawer & Quick Launchers**: Dedicated **All Apps** button (opens phone App Drawer), 4 one-click quick launchers (**Phone**, **Camera**, **Messages**, **Gallery**), and an inline searchable **Installed Apps** drawer (`scrcpy --list-apps`).
+
+---
+
+## Core Features
+
+- **Multi-Device Auto-Detection & Saved Profiles**: Polls ADB automatically, merges live USB/Wi-Fi devices with saved profiles (`%LOCALAPPDATA%\PhoneControl\config.json`), supports custom nicknames, battery & Android version readout, and optional **Auto-Mirror on plug-in**.
+- **Smooth 60fps Hardware Mirroring (`scrcpy` v5+)**: 3 quality presets (*Lite 30fps*, *Balanced 60fps*, *High 16M*), Stay Awake, Audio forwarding, and one-click USB-to-Wi-Fi conversion (`tcpip 5555`).
+- **Full-Resolution Screenshot + Clipboard Copy**: Captures native PNG via `adb exec-out screencap -p`, validates PNG integrity (detecting `FLAG_SECURE`), saves to `Pictures\PhoneControl`, and copies directly to Windows Clipboard (`CF_DIB`) for instant `Ctrl+V` pasting.
+- **Hardware Keys & File Transfer**: Back, Home, Recents, Volume −/+, Mute, Power, Notification Shade, Screen Rotation, Push File / Install APK, and Android 11+ Wireless Pairing (`adb pair`).
 
 ---
 
 ## Requirements
 
-- Windows 10 / 11 (with WebView2 runtime, preinstalled on Windows 11)
+- Windows 10 / 11 (WebView2 runtime preinstalled on Windows 11)
 - Python 3.10+
-- [`scrcpy`](https://github.com/Genymobile/scrcpy) (includes `adb.exe`):
+- [`scrcpy`](https://github.com/Genymobile/scrcpy) v3+ / v5+ (bundles `adb.exe`):
   ```powershell
   winget install Genymobile.scrcpy
   ```
@@ -32,46 +38,27 @@ Designed as a compact side-panel companion to `scrcpy` so you can auto-detect mu
 
 ## Quick Start
 
-1. Clone this repository and install Python dependencies:
-   ```powershell
-   git clone https://github.com/BuiKent/PhoneControl.git
-   cd PhoneControl
-   pip install -r requirements.txt
-   ```
-2. Launch the app:
-   ```powershell
-   python main.py
-   ```
-   Or double-click `launch.vbs` (launches cleanly without a console window).
-3. *(Optional)* Create a Desktop shortcut (`Phone Control.lnk`):
-   ```powershell
-   powershell -ExecutionPolicy Bypass -File scripts\create_desktop_shortcut.ps1
-   ```
+```powershell
+git clone https://github.com/BuiKent/PhoneControl.git
+cd PhoneControl
+pip install -r requirements.txt
+python main.py
+```
+
+Double-click `launch.vbs` to start without a console window, or create a Desktop shortcut:
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\create_desktop_shortcut.ps1
+```
 
 ---
 
-## Connecting a New Android / Samsung Phone
-
-1. On the phone, open **Settings → About phone → Software information** and tap **Build number** 7 times.
-2. Open **Developer options** and enable **USB debugging**.
-3. Plug in the USB cable and tap **Allow** (*Always allow from this computer*). The phone automatically appears in **Phone Control** and is saved for future sessions.
-4. To go wireless, click **Chuyển sang Wi-Fi** (while plugged in) or click **+ Thêm máy** to pair via Android 11+ Wireless Debugging.
-
----
-
-## Development & Tests
+## Development & Verification
 
 ```powershell
 pip install -r requirements-dev.txt
 playwright install chromium
 pytest -v
 ```
-
-Test coverage includes:
-- `tests/test_adb_service.py`: ADB device parsing, battery/IP extraction, `scrcpy` argument builder, PNG validation, keyevents, file push & APK install.
-- `tests/test_device_store.py`: Atomic config persistence, device profiles, rename/delete, corrupt JSON recovery.
-- `tests/test_api.py`: Live + saved device merging and single-shot auto-mirror behavior.
-- `tests/test_ui_dom.py`: Real Chromium DOM interaction tests via Playwright (clicks, modals, toggles, zero console/page errors).
 
 ---
 

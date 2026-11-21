@@ -1,3 +1,3 @@
-"""PhoneControl — Desktop control panel for scrcpy & ADB Android devices."""
+"""PhoneControl — Desktop control panel & multi-device workspace for scrcpy & ADB."""
 
-__version__ = "1.0.0"
+__version__ = "2.0.0"

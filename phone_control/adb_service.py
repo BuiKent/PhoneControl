@@ -24,10 +24,17 @@ QUALITY_PROFILES: dict[str, dict[str, str]] = {
     "lite": {"bit_rate": "4M", "max_fps": "30", "max_size": "1280"},
 }
 
+SWIPE_STEP_RATIOS: dict[str, tuple[float, int]] = {
+    "short": (0.22, 220),
+    "medium": (0.44, 280),
+    "long": (0.68, 340),
+}
+
 KEYEVENT_ACTIONS: dict[str, list[str]] = {
     "back": ["shell", "input", "keyevent", "4"],
     "home": ["shell", "input", "keyevent", "3"],
     "recents": ["shell", "input", "keyevent", "187"],
+    "select": ["shell", "input", "keyevent", "66"],
     "vol_up": ["shell", "input", "keyevent", "24"],
     "vol_down": ["shell", "input", "keyevent", "25"],
     "mute": ["shell", "input", "keyevent", "164"],
@@ -35,6 +42,26 @@ KEYEVENT_ACTIONS: dict[str, list[str]] = {
     "wake": ["shell", "input", "keyevent", "224"],
     "notifications": ["shell", "cmd", "statusbar", "expand-notifications"],
     "quick_settings": ["shell", "cmd", "statusbar", "expand-settings"],
+}
+
+QUICK_APP_INTENTS: dict[str, list[list[str]]] = {
+    "phone": [
+        ["shell", "am", "start", "-a", "android.intent.action.DIAL"],
+    ],
+    "camera": [
+        ["shell", "am", "start", "-a", "android.media.action.STILL_IMAGE_CAMERA"],
+        ["shell", "input", "keyevent", "27"],
+    ],
+    "messages": [
+        ["shell", "am", "start", "-a", "android.intent.action.MAIN", "-c", "android.intent.category.APP_MESSAGING"],
+        ["shell", "monkey", "-p", "com.samsung.android.messaging", "-c", "android.intent.category.LAUNCHER", "1"],
+        ["shell", "monkey", "-p", "com.google.android.apps.messaging", "-c", "android.intent.category.LAUNCHER", "1"],
+    ],
+    "gallery": [
+        ["shell", "am", "start", "-a", "android.intent.action.MAIN", "-c", "android.intent.category.APP_GALLERY"],
+        ["shell", "monkey", "-p", "com.sec.android.gallery3d", "-c", "android.intent.category.LAUNCHER", "1"],
+        ["shell", "monkey", "-p", "com.google.android.apps.photos", "-c", "android.intent.category.LAUNCHER", "1"],
+    ],
 }
 
 
@@ -137,12 +164,74 @@ def parse_wifi_ip(ip_output: str) -> str:
     return ""
 
 
+def parse_wm_size(output: str) -> tuple[int, int] | None:
+    """Parse `adb shell wm size` output; prefer Override size over Physical size."""
+    override = re.search(r"Override\s+size:\s*(\d+)x(\d+)", output)
+    if override:
+        w, h = int(override.group(1)), int(override.group(2))
+        if w > 0 and h > 0:
+            return (w, h)
+    physical = re.search(r"Physical\s+size:\s*(\d+)x(\d+)", output)
+    if physical:
+        w, h = int(physical.group(1)), int(physical.group(2))
+        if w > 0 and h > 0:
+            return (w, h)
+    return None
+
+
+def parse_scrcpy_app_list(output: str) -> list[dict[str, Any]]:
+    """Parse `scrcpy --list-apps` stdout into sorted `{name, package, system}` items."""
+    apps: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for line in output.splitlines():
+        match = re.match(r"^\s*([*-])\s+(.+?)\s{2,}([a-zA-Z0-9_]+(?:\.[a-zA-Z0-9_]+)+)\s*$", line)
+        if not match:
+            continue
+        marker, name, pkg = match.group(1), match.group(2).strip(), match.group(3).strip()
+        if pkg in seen:
+            continue
+        seen.add(pkg)
+        apps.append({"name": name, "package": pkg, "system": marker == "*"})
+    apps.sort(key=lambda item: item["name"].lower())
+    return apps
+
+
+def compute_swipe_coords(
+    width: int,
+    height: int,
+    direction: str,
+    step: str = "medium",
+) -> tuple[int, int, int, int, int]:
+    """Compute (x1, y1, x2, y2, duration_ms) for directional touch swipes."""
+    ratio, duration = SWIPE_STEP_RATIOS.get(step, SWIPE_STEP_RATIOS["medium"])
+    cx = width // 2
+    cy = height // 2
+    dy = max(60, int(height * ratio / 2))
+    dx = max(60, int(width * ratio / 2))
+
+    if direction == "up":
+        # Finger moves upward -> scrolls page content down
+        return (cx, min(height - 40, cy + dy), cx, max(40, cy - dy), duration)
+    if direction == "down":
+        # Finger moves downward -> scrolls page content up
+        return (cx, max(40, cy - dy), cx, min(height - 40, cy + dy), duration)
+    if direction == "left":
+        # Finger moves left -> next page/tab
+        return (min(width - 40, cx + dx), cy, max(40, cx - dx), cy, duration)
+    if direction == "right":
+        # Finger moves right -> previous page/tab
+        return (max(40, cx - dx), cy, min(width - 40, cx + dx), cy, duration)
+    raise ValueError(f"Hướng vuốt không hợp lệ: {direction}")
+
+
 def build_scrcpy_args(
     scrcpy_path: Path,
     serial: str,
     *,
     title: str,
     settings: dict[str, Any],
+    borderless: bool = False,
+    initial_rect: dict[str, int] | None = None,
 ) -> list[str]:
     """Construct validated scrcpy CLI arguments."""
     quality_key = settings.get("quality", "balanced")
@@ -162,10 +251,21 @@ def build_scrcpy_args(
         args.append("--stay-awake")
     if settings.get("turn_screen_off", False):
         args.append("--turn-screen-off")
-    if settings.get("always_on_top", False):
+    if settings.get("always_on_top", False) and not borderless:
         args.append("--always-on-top")
     if not settings.get("enable_audio", True):
         args.append("--no-audio")
+    if borderless:
+        args.append("--window-borderless")
+    if initial_rect:
+        for flag, key in (
+            ("--window-x", "x"),
+            ("--window-y", "y"),
+            ("--window-width", "width"),
+            ("--window-height", "height"),
+        ):
+            if key in initial_rect and initial_rect[key] is not None:
+                args.append(f"{flag}={int(initial_rect[key])}")
     return args
 
 
@@ -246,6 +346,7 @@ class AdbScrcpyService:
         self._clipboard = clipboard_fn
         self._mirror_procs: dict[str, subprocess.Popen] = {}
         self._detail_cache: dict[str, tuple[float, dict[str, Any]]] = {}
+        self._app_cache: dict[str, tuple[float, list[dict[str, Any]]]] = {}
 
     def _require_adb(self) -> Path:
         if not self.tools.adb or not self.tools.adb.exists():
@@ -307,6 +408,9 @@ class AdbScrcpyService:
                 dev.setdefault("manufacturer", "")
                 dev.setdefault("android_version", "")
                 dev.setdefault("battery", None)
+                dev.setdefault("screen_width", 0)
+                dev.setdefault("screen_height", 0)
+                dev.setdefault("show_touches", False)
                 dev.setdefault("wifi_ip", serial.split(":")[0] if dev["transport"] == "wifi" else "")
                 dev["hardware_serial"] = serial
         return devices
@@ -322,6 +426,8 @@ class AdbScrcpyService:
             "echo MDL=$(getprop ro.product.model);"
             "echo VER=$(getprop ro.build.version.release);"
             "echo SER=$(getprop ro.serialno);"
+            "echo TCH=$(settings get system show_touches 2>/dev/null);"
+            "wm size 2>/dev/null;"
             "ip -f inet addr show wlan0 2>/dev/null || ip route 2>/dev/null"
         )
         prop_proc = self.run_adb(["shell", prop_cmd], serial=serial, timeout=5.0)
@@ -332,6 +438,9 @@ class AdbScrcpyService:
             "hardware_serial": "",
             "wifi_ip": "",
             "battery": None,
+            "screen_width": 1080,
+            "screen_height": 2340,
+            "show_touches": False,
         }
         if prop_proc.returncode == 0:
             out = prop_proc.stdout
@@ -344,7 +453,12 @@ class AdbScrcpyService:
                     info["android_version"] = line[4:].strip()
                 elif line.startswith("SER="):
                     info["hardware_serial"] = line[4:].strip()
+                elif line.startswith("TCH="):
+                    info["show_touches"] = line[4:].strip() == "1"
             info["wifi_ip"] = parse_wifi_ip(out)
+            size = parse_wm_size(out)
+            if size:
+                info["screen_width"], info["screen_height"] = size
 
         bat_proc = self.run_adb(["shell", "dumpsys", "battery"], serial=serial, timeout=5.0)
         if bat_proc.returncode == 0:
@@ -352,6 +466,12 @@ class AdbScrcpyService:
 
         self._detail_cache[serial] = (now, dict(info))
         return info
+
+    def get_screen_size(self, serial: str) -> tuple[int, int]:
+        details = self.get_device_details(serial)
+        w = int(details.get("screen_width") or 1080)
+        h = int(details.get("screen_height") or 2340)
+        return (w, h)
 
     def _prune_dead_mirrors(self) -> None:
         dead = [s for s, p in self._mirror_procs.items() if p.poll() is not None]
@@ -366,13 +486,28 @@ class AdbScrcpyService:
         self._prune_dead_mirrors()
         return list(self._mirror_procs.keys())
 
-    def start_mirror(self, serial: str, *, title: str, settings: dict[str, Any]) -> dict[str, Any]:
+    def start_mirror(
+        self,
+        serial: str,
+        *,
+        title: str,
+        settings: dict[str, Any],
+        borderless: bool = False,
+        initial_rect: dict[str, int] | None = None,
+    ) -> dict[str, Any]:
         scrcpy = self._require_scrcpy()
         self._prune_dead_mirrors()
         if serial in self._mirror_procs:
             return {"serial": serial, "pid": self._mirror_procs[serial].pid, "already_running": True}
 
-        args = build_scrcpy_args(scrcpy, serial, title=title, settings=settings)
+        args = build_scrcpy_args(
+            scrcpy,
+            serial,
+            title=title,
+            settings=settings,
+            borderless=borderless,
+            initial_rect=initial_rect,
+        )
         proc = self._popen(
             args,
             cwd=str(scrcpy.parent),
@@ -410,9 +545,160 @@ class AdbScrcpyService:
         for serial in list(self._mirror_procs.keys()):
             self.stop_mirror(serial)
 
+    def set_display_power(self, serial: str, *, on: bool) -> dict[str, Any]:
+        """Turn physical phone screen off (keeping mirror alive) or wake it back on."""
+        if on:
+            proc = self.run_adb(["shell", "input", "keyevent", "224"], serial=serial, timeout=6.0)
+            if proc.returncode != 0:
+                raise RuntimeError((proc.stderr or proc.stdout or "Không bật sáng màn hình được").strip())
+            return {"serial": serial, "screen_on": True}
+
+        # Use a short-lived headless scrcpy helper (same technique as escrcpy) so
+        # physical display turns off anytime without disrupting an active mirror.
+        scrcpy = self._require_scrcpy()
+        cmd = [
+            str(scrcpy),
+            "-s",
+            serial,
+            "--no-window",
+            "--no-video",
+            "--no-audio",
+            "--turn-screen-off",
+        ]
+        proc = self._popen(
+            cmd,
+            cwd=str(scrcpy.parent),
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.PIPE,
+            creationflags=CREATE_NO_WINDOW,
+        )
+        # Allow scrcpy server ~1.1s to connect and issue SET_DISPLAY_POWER_MODE(OFF),
+        # then cleanly terminate the helper so it never lingers.
+        time.sleep(1.1)
+        if proc.poll() is None:
+            try:
+                proc.terminate()
+                proc.wait(timeout=2)
+            except Exception:
+                try:
+                    proc.kill()
+                except Exception:
+                    pass
+        elif proc.returncode != 0:
+            err = ""
+            if proc.stderr:
+                raw_err = proc.stderr.read()
+                err = raw_err.decode("utf-8", errors="replace") if isinstance(raw_err, bytes) else str(raw_err)
+            raise RuntimeError(err.strip() or "Không tắt được màn hình vật lý.")
+        return {"serial": serial, "screen_on": False}
+
+    def set_show_touches(self, serial: str, enabled: bool) -> dict[str, Any]:
+        val = "1" if enabled else "0"
+        proc = self.run_adb(["shell", "settings", "put", "system", "show_touches", val], serial=serial, timeout=5.0)
+        if proc.returncode != 0:
+            raise RuntimeError((proc.stderr or proc.stdout or "Không đổi được chấm chạm trắng").strip())
+        cached = self._detail_cache.get(serial)
+        if cached:
+            cached[1]["show_touches"] = bool(enabled)
+        return {"serial": serial, "show_touches": bool(enabled)}
+
+    def swipe(self, serial: str, direction: str, *, step: str = "medium") -> dict[str, Any]:
+        w, h = self.get_screen_size(serial)
+        x1, y1, x2, y2, dur = compute_swipe_coords(w, h, direction, step)
+        proc = self.run_adb(
+            ["shell", "input", "swipe", str(x1), str(y1), str(x2), str(y2), str(dur)],
+            serial=serial,
+            timeout=6.0,
+        )
+        if proc.returncode != 0:
+            raise RuntimeError((proc.stderr or proc.stdout or "Không gửi được lệnh vuốt").strip())
+        return {"serial": serial, "direction": direction, "step": step}
+
+    def tap_center(self, serial: str) -> dict[str, Any]:
+        w, h = self.get_screen_size(serial)
+        cx, cy = w // 2, h // 2
+        proc = self.run_adb(["shell", "input", "tap", str(cx), str(cy)], serial=serial, timeout=6.0)
+        if proc.returncode != 0:
+            raise RuntimeError((proc.stderr or proc.stdout or "Không gửi được lệnh chạm").strip())
+        return {"serial": serial, "x": cx, "y": cy}
+
+    def open_app_drawer(self, serial: str) -> dict[str, Any]:
+        """Open the All Apps drawer reliably across Samsung One UI & stock Android launchers."""
+        w, h = self.get_screen_size(serial)
+        cx = w // 2
+        y_start = int(h * 0.78)
+        y_end = int(h * 0.22)
+        # Go to Home first so the swipe-up gesture always opens the Apps screen
+        self.run_adb(["shell", "input", "keyevent", "3"], serial=serial, timeout=5.0)
+        time.sleep(0.18)
+        proc = self.run_adb(
+            ["shell", "input", "swipe", str(cx), str(y_start), str(cx), str(y_end), "220"],
+            serial=serial,
+            timeout=6.0,
+        )
+        if proc.returncode != 0:
+            raise RuntimeError((proc.stderr or proc.stdout or "Không mở được trang tất cả ứng dụng").strip())
+        return {"serial": serial, "action": "app_drawer"}
+
+    def launch_quick_app(self, serial: str, app_key: str) -> dict[str, Any]:
+        commands = QUICK_APP_INTENTS.get(app_key)
+        if not commands:
+            raise ValueError(f"Ứng dụng nhanh không hợp lệ: {app_key}")
+
+        last_err = ""
+        for cmd in commands:
+            proc = self.run_adb(cmd, serial=serial, timeout=6.0)
+            combined = f"{proc.stdout} {proc.stderr}".strip()
+            has_intent_error = "error:" in combined.lower() or "unable to resolve" in combined.lower() or "no activities found" in combined.lower()
+            if proc.returncode == 0 and not has_intent_error:
+                return {"serial": serial, "app_key": app_key}
+            last_err = combined
+        raise RuntimeError(last_err or f"Không mở được ứng dụng {app_key}.")
+
+    def list_installed_apps(self, serial: str, *, force_refresh: bool = False) -> list[dict[str, Any]]:
+        now = time.monotonic()
+        cached = self._app_cache.get(serial)
+        if not force_refresh and cached and (now - cached[0]) < 120.0:
+            return list(cached[1])
+
+        scrcpy = self._require_scrcpy()
+        proc = self._run(
+            [str(scrcpy), "-s", serial, "--list-apps"],
+            cwd=str(scrcpy.parent),
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=20.0,
+            creationflags=CREATE_NO_WINDOW,
+        )
+        apps = parse_scrcpy_app_list(f"{proc.stdout}\n{proc.stderr}")
+        if not apps and proc.returncode != 0:
+            raise RuntimeError((proc.stderr or proc.stdout or "Không đọc được danh sách ứng dụng").strip())
+        self._app_cache[serial] = (now, list(apps))
+        return apps
+
+    def launch_package(self, serial: str, package_name: str) -> dict[str, Any]:
+        pkg = package_name.strip()
+        if not re.match(r"^[a-zA-Z0-9_]+(?:\.[a-zA-Z0-9_]+)+$", pkg):
+            raise ValueError(f"Tên gói ứng dụng không hợp lệ: {pkg}")
+        proc = self.run_adb(
+            ["shell", "monkey", "-p", pkg, "-c", "android.intent.category.LAUNCHER", "1"],
+            serial=serial,
+            timeout=8.0,
+        )
+        combined = f"{proc.stdout} {proc.stderr}".strip()
+        if proc.returncode != 0 or "no activities found" in combined.lower():
+            raise RuntimeError(combined or f"Không mở được {pkg}")
+        return {"serial": serial, "package": pkg}
+
     def send_action(self, serial: str, action: str) -> dict[str, Any]:
         if action == "rotate":
             return self._toggle_rotation(serial)
+        if action == "app_drawer":
+            return self.open_app_drawer(serial)
+        if action == "tap_center":
+            return self.tap_center(serial)
         if action not in KEYEVENT_ACTIONS:
             raise ValueError(f"Hành động không hợp lệ: {action}")
         proc = self.run_adb(KEYEVENT_ACTIONS[action], serial=serial, timeout=6.0)

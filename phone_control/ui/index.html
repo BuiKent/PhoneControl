@@ -8,292 +8,523 @@
 </head>
 <body>
   <div class="app-shell">
-    <!-- Header -->
+    <!-- Unified Topbar -->
     <header class="topbar">
-      <div class="brand">
-        <div class="brand-icon" aria-hidden="true">
-          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <rect x="6" y="2" width="12" height="20" rx="2.5"></rect>
-            <line x1="11" y1="18.5" x2="13" y2="18.5"></line>
-          </svg>
-        </div>
-        <div>
-          <h1 class="brand-title">Phone Control</h1>
-          <p class="brand-sub" id="toolStatusText">Đang kiểm tra ADB &amp; scrcpy...</p>
-        </div>
-      </div>
-      <div class="topbar-actions">
-        <button type="button" class="icon-btn" id="btnRefresh" title="Quét lại thiết bị" aria-label="Quét lại thiết bị">
-          <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M21 12a9 9 0 1 1-2.64-6.36"></path>
-            <polyline points="21 3 21 9 15 9"></polyline>
+      <div class="topbar-left">
+        <button type="button" class="icon-btn" id="btnToggleSidebar" title="Ẩn / Hiện bảng điều khiển (Ctrl+B)" aria-label="Ẩn hoặc hiện bảng điều khiển" aria-expanded="true">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="4" width="18" height="16" rx="2"></rect>
+            <line x1="9" y1="4" x2="9" y2="20"></line>
           </svg>
         </button>
-        <button type="button" class="btn-outline btn-sm" id="btnOpenWifiModal">
-          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <div class="brand">
+          <span class="brand-mark" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="6" y="2.5" width="12" height="19" rx="2.5"></rect>
+              <line x1="10.5" y1="18" x2="13.5" y2="18"></line>
+            </svg>
+          </span>
+          <span class="brand-name">Phone Control</span>
+        </div>
+        <span class="topbar-divider" aria-hidden="true"></span>
+        <span class="topbar-meta" id="toolStatusText">Đang kiểm tra thiết bị...</span>
+      </div>
+
+      <div class="topbar-center">
+        <div class="toolbar-group" role="group" aria-label="Mức thu phóng khung điện thoại">
+          <span class="toolbar-label">Zoom</span>
+          <div class="zoom-bar" id="zoomBar">
+            <button type="button" class="zoom-btn active" data-zoom="fit" title="Tự động co giãn vừa khít khung">Tự khớp</button>
+            <button type="button" class="zoom-btn" data-zoom="50">50%</button>
+            <button type="button" class="zoom-btn" data-zoom="75">75%</button>
+            <button type="button" class="zoom-btn" data-zoom="100">100%</button>
+            <button type="button" class="zoom-btn" data-zoom="125">125%</button>
+            <button type="button" class="zoom-btn" data-zoom="150">150%</button>
+            <button type="button" class="zoom-btn" data-zoom="fill" title="Tận dụng tối đa màn hình Desktop">Lấp đầy</button>
+          </div>
+        </div>
+
+        <div class="toolbar-group" role="group" aria-label="Chế độ xem thử lưới nhiều máy">
+          <label class="toolbar-label" for="selectDemoCount">Demo lưới</label>
+          <select id="selectDemoCount" class="compact-select" aria-label="Chọn số máy Demo">
+            <option value="0">Tắt</option>
+            <option value="2">2 máy</option>
+            <option value="3">3 máy</option>
+            <option value="4">4 máy</option>
+            <option value="6">6 máy</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="topbar-right">
+        <button type="button" class="btn-ghost" id="btnTopScreenOff" disabled title="Tắt màn hình vật lý điện thoại (vẫn điều khiển bình thường)">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"></path>
+            <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"></path>
+            <line x1="1" y1="1" x2="23" y2="23"></line>
+          </svg>
+          <span>Tắt màn ĐT</span>
+        </button>
+        <button type="button" class="btn-ghost" id="btnTopScreenshot" disabled title="Chụp ảnh màn hình và sao chép Clipboard">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
+            <circle cx="12" cy="13" r="3.5"></circle>
+          </svg>
+          <span>Chụp ảnh</span>
+        </button>
+        <button type="button" class="btn-outline" id="btnOpenAddDrawer" title="Thêm điện thoại qua Wi-Fi hoặc xem hướng dẫn USB">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
             <line x1="12" y1="5" x2="12" y2="19"></line>
             <line x1="5" y1="12" x2="19" y2="12"></line>
           </svg>
-          Thêm máy
+          <span>Thêm máy</span>
+        </button>
+        <button type="button" class="icon-btn" id="btnToggleFullscreen" title="Phóng to toàn màn hình (F11)" aria-label="Toàn màn hình">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="15 3 21 3 21 9"></polyline>
+            <polyline points="9 21 3 21 3 15"></polyline>
+            <line x1="21" y1="3" x2="14" y2="10"></line>
+            <line x1="3" y1="21" x2="10" y2="14"></line>
+          </svg>
         </button>
       </div>
     </header>
 
-    <main class="main-content">
-      <!-- Devices section -->
-      <section class="card" aria-labelledby="devicesHeading">
-        <div class="section-header">
-          <h2 class="section-title" id="devicesHeading">Thiết bị</h2>
-          <label class="inline-switch" title="Tự bật màn hình scrcpy ngay khi cắm thiết bị đã lưu">
-            <input type="checkbox" id="chkAutoMirrorAll" />
-            <span>Tự mở khi cắm</span>
+    <!-- Main Split Area: Left Control Sidebar + Right Multi-Phone Stage -->
+    <div class="workspace-body">
+      <!-- Left Collapsible Sidebar -->
+      <aside class="sidebar" id="controlSidebar" aria-label="Bảng điều khiển thiết bị">
+        <!-- Main Controls View -->
+        <div class="sidebar-scroll" id="sidebarMainView">
+          <!-- 1. Devices Section -->
+          <section class="panel-section" aria-labelledby="devicesHeading">
+            <div class="section-head">
+              <h2 class="section-title" id="devicesHeading">Thiết bị</h2>
+              <div class="section-actions">
+                <button type="button" class="text-btn" id="btnMirrorAll" title="Mở song song tất cả máy đang kết nối">Chiếu hết</button>
+                <button type="button" class="icon-btn mini" id="btnRefresh" title="Quét lại thiết bị" aria-label="Quét lại thiết bị">
+                  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21 12a9 9 0 1 1-2.64-6.36"></path>
+                    <polyline points="21 3 21 9 15 9"></polyline>
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            <div class="device-list" id="deviceList" role="listbox" aria-label="Danh sách điện thoại">
+              <div class="empty-inline">Đang quét thiết bị ADB...</div>
+            </div>
+
+            <div class="row-between">
+              <label class="inline-check" title="Tự động mở màn hình ngay khi cắm thiết bị đã lưu">
+                <input type="checkbox" id="chkAutoMirrorAll" />
+                <span>Tự mở khi cắm máy đã lưu</span>
+              </label>
+              <button type="button" class="text-btn" id="btnSwitchWifi" disabled title="Chuyển thiết bị đang cắm USB sang dùng không dây Wi-Fi">Chuyển Wi-Fi</button>
+            </div>
+          </section>
+
+          <!-- 2. Mirror & Physical Display Power -->
+          <section class="panel-section" aria-labelledby="displayHeading">
+            <div class="section-head">
+              <h2 class="section-title" id="displayHeading">Màn hình &amp; Hiển thị</h2>
+              <span class="device-pill" id="selectedDeviceBadge">Chưa chọn máy</span>
+            </div>
+
+            <div class="btn-row-2">
+              <button type="button" class="btn-primary" id="btnToggleMirror" disabled>
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="2" y="3" width="20" height="14" rx="2"></rect>
+                  <line x1="8" y1="21" x2="16" y2="21"></line>
+                  <line x1="12" y1="17" x2="12" y2="21"></line>
+                </svg>
+                <span id="mirrorBtnLabel">Mở màn hình</span>
+              </button>
+              <button type="button" class="btn-secondary" id="btnScreenshot" disabled title="Chụp PNG độ phân giải gốc &amp; sao chép Clipboard">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
+                  <circle cx="12" cy="13" r="3.5"></circle>
+                </svg>
+                <span>Chụp ảnh</span>
+              </button>
+            </div>
+
+            <!-- Live screen power off/on + white touch dot -->
+            <div class="btn-row-3">
+              <button type="button" class="ctrl-btn" id="btnScreenOffLive" disabled title="Tắt sáng màn hình vật lý ngay lúc này (vẫn điều khiển trên PC bình thường)">
+                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"></path>
+                  <line x1="1" y1="1" x2="23" y2="23"></line>
+                </svg>
+                <span>Tắt màn ĐT</span>
+              </button>
+              <button type="button" class="ctrl-btn" id="btnScreenOnLive" disabled title="Bật sáng lại màn hình điện thoại">
+                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                  <circle cx="12" cy="12" r="3"></circle>
+                </svg>
+                <span>Bật sáng ĐT</span>
+              </button>
+              <button type="button" class="ctrl-btn" id="btnToggleTouchDot" disabled aria-pressed="false" title="Hiện chấm tròn trắng khi chạm/kéo trên màn hình điện thoại (không tốn RAM)">
+                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+                  <circle cx="12" cy="12" r="3.5" fill="currentColor"></circle>
+                  <circle cx="12" cy="12" r="8.5"></circle>
+                </svg>
+                <span>Chấm chạm</span>
+              </button>
+            </div>
+
+            <!-- Quality + options -->
+            <div class="seg-control" role="radiogroup" aria-label="Chất lượng khung hình">
+              <button type="button" class="seg-btn" data-quality="lite">Nhẹ 30fps</button>
+              <button type="button" class="seg-btn active" data-quality="balanced">Mượt 60fps</button>
+              <button type="button" class="seg-btn" data-quality="high">Nét cao</button>
+            </div>
+
+            <div class="chip-grid">
+              <label class="chip" title="Tự tắt màn hình vật lý ngay khi mở chiếu">
+                <input type="checkbox" id="chkTurnScreenOff" />
+                <span>Tắt khi mở</span>
+              </label>
+              <label class="chip" title="Giữ điện thoại không tự khóa màn hình">
+                <input type="checkbox" id="chkStayAwake" checked />
+                <span>Giữ sáng</span>
+              </label>
+              <label class="chip" title="Truyền âm thanh điện thoại sang loa máy tính">
+                <input type="checkbox" id="chkEnableAudio" checked />
+                <span>Âm thanh</span>
+              </label>
+            </div>
+          </section>
+
+          <!-- 3. Touch Swipe Pad & Navigation -->
+          <section class="panel-section" aria-labelledby="swipeHeading">
+            <div class="section-head">
+              <h2 class="section-title" id="swipeHeading">Vuốt chạm &amp; Điều hướng</h2>
+              <div class="step-pills" role="radiogroup" aria-label="Độ dài mỗi lần vuốt">
+                <button type="button" class="step-btn" data-step="short" title="Vuốt bước ngắn">Ngắn</button>
+                <button type="button" class="step-btn active" data-step="medium" title="Vuốt bước vừa">Vừa</button>
+                <button type="button" class="step-btn" data-step="long" title="Vuốt bước dài">Dài</button>
+              </div>
+            </div>
+
+            <div class="swipe-pad">
+              <div class="swipe-spacer"></div>
+              <button type="button" class="ctrl-btn swipe-btn" data-swipe="up" disabled title="Vuốt từ dưới lên (cuộn trang xuống)">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="18 15 12 9 6 15"></polyline>
+                </svg>
+                <span>Vuốt lên</span>
+              </button>
+              <div class="swipe-spacer"></div>
+
+              <button type="button" class="ctrl-btn swipe-btn" data-swipe="left" disabled title="Vuốt sang trái (chuyển trang phải)">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="15 18 9 12 15 6"></polyline>
+                </svg>
+                <span>Trái</span>
+              </button>
+              <button type="button" class="ctrl-btn swipe-center" data-action="tap_center" disabled title="Chạm vào giữa màn hình / Chọn">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+                  <circle cx="12" cy="12" r="4"></circle>
+                </svg>
+                <span>Chọn</span>
+              </button>
+              <button type="button" class="ctrl-btn swipe-btn" data-swipe="right" disabled title="Vuốt sang phải (quay lại trang trái)">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="9 18 15 12 9 6"></polyline>
+                </svg>
+                <span>Phải</span>
+              </button>
+
+              <div class="swipe-spacer"></div>
+              <button type="button" class="ctrl-btn swipe-btn" data-swipe="down" disabled title="Vuốt từ trên xuống (cuộn trang lên)">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="6 9 12 15 18 9"></polyline>
+                </svg>
+                <span>Vuốt xuống</span>
+              </button>
+              <div class="swipe-spacer"></div>
+            </div>
+
+            <!-- 4-key Navigation bar including All Apps Drawer -->
+            <div class="btn-row-4">
+              <button type="button" class="ctrl-btn" data-action="back" disabled title="Quay lại (Back)">
+                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="15 18 9 12 15 6"></polyline>
+                </svg>
+                <span>Quay lại</span>
+              </button>
+              <button type="button" class="ctrl-btn" data-action="home" disabled title="Màn hình chính (Home)">
+                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M3 10.5L12 3l9 7.5"></path>
+                  <path d="M5 9.5V20h14V9.5"></path>
+                </svg>
+                <span>Trang chủ</span>
+              </button>
+              <button type="button" class="ctrl-btn" data-action="recents" disabled title="Ứng dụng gần đây">
+                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="5" y="5" width="14" height="14" rx="2"></rect>
+                </svg>
+                <span>Đa nhiệm</span>
+              </button>
+              <button type="button" class="ctrl-btn" data-action="app_drawer" disabled title="Mở trang chứa tất cả ứng dụng trên điện thoại">
+                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="4" y="4" width="4" height="4" rx="1"></rect>
+                  <rect x="10" y="4" width="4" height="4" rx="1"></rect>
+                  <rect x="16" y="4" width="4" height="4" rx="1"></rect>
+                  <rect x="4" y="10" width="4" height="4" rx="1"></rect>
+                  <rect x="10" y="10" width="4" height="4" rx="1"></rect>
+                  <rect x="16" y="10" width="4" height="4" rx="1"></rect>
+                  <rect x="4" y="16" width="4" height="4" rx="1"></rect>
+                  <rect x="10" y="16" width="4" height="4" rx="1"></rect>
+                  <rect x="16" y="16" width="4" height="4" rx="1"></rect>
+                </svg>
+                <span>Tất cả app</span>
+              </button>
+            </div>
+          </section>
+
+          <!-- 4. Quick Apps & Hardware Keys -->
+          <section class="panel-section" aria-labelledby="quickAppsHeading">
+            <div class="section-head">
+              <h2 class="section-title" id="quickAppsHeading">Ứng dụng &amp; Phím cứng</h2>
+              <button type="button" class="text-btn" id="btnOpenAppsDrawer" disabled title="Tìm và mở bất kỳ ứng dụng nào đã cài trên điện thoại">Danh sách app</button>
+            </div>
+
+            <!-- 4 Quick App Launchers -->
+            <div class="btn-row-4">
+              <button type="button" class="ctrl-btn" data-app="phone" disabled title="Mở ứng dụng Điện thoại / Gọi">
+                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.79 19.79 0 0 1 2.12 4.18 2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.12.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.34 1.85.58 2.81.7A2 2 0 0 1 22 16.92z"></path>
+                </svg>
+                <span>Gọi điện</span>
+              </button>
+              <button type="button" class="ctrl-btn" data-app="camera" disabled title="Mở ứng dụng Camera">
+                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
+                  <circle cx="12" cy="13" r="3.5"></circle>
+                </svg>
+                <span>Camera</span>
+              </button>
+              <button type="button" class="ctrl-btn" data-app="messages" disabled title="Mở ứng dụng Tin nhắn">
+                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                </svg>
+                <span>Tin nhắn</span>
+              </button>
+              <button type="button" class="ctrl-btn" data-app="gallery" disabled title="Mở Thư viện ảnh">
+                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="3" y="3" width="18" height="18" rx="2"></rect>
+                  <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                  <polyline points="21 15 16 10 5 21"></polyline>
+                </svg>
+                <span>Ảnh</span>
+              </button>
+            </div>
+
+            <!-- Hardware keys row 1 -->
+            <div class="btn-row-4">
+              <button type="button" class="ctrl-btn" data-action="vol_down" disabled title="Giảm âm lượng">
+                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+                  <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+                  <line x1="15" y1="12" x2="21" y2="12"></line>
+                </svg>
+                <span>Âm −</span>
+              </button>
+              <button type="button" class="ctrl-btn" data-action="vol_up" disabled title="Tăng âm lượng">
+                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+                  <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+                  <line x1="18" y1="9" x2="18" y2="15"></line>
+                  <line x1="15" y1="12" x2="21" y2="12"></line>
+                </svg>
+                <span>Âm +</span>
+              </button>
+              <button type="button" class="ctrl-btn" data-action="mute" disabled title="Tắt / Bật tiếng">
+                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+                  <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+                  <line x1="22" y1="9" x2="16" y2="15"></line>
+                  <line x1="16" y1="9" x2="22" y2="15"></line>
+                </svg>
+                <span>Tắt tiếng</span>
+              </button>
+              <button type="button" class="ctrl-btn ctrl-danger" data-action="power" disabled title="Nút nguồn (Khóa / Mở khóa điện thoại)">
+                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M18.36 6.64a9 9 0 1 1-12.73 0"></path>
+                  <line x1="12" y1="2" x2="12" y2="12"></line>
+                </svg>
+                <span>Nguồn</span>
+              </button>
+            </div>
+
+            <!-- Hardware keys row 2 -->
+            <div class="btn-row-4">
+              <button type="button" class="ctrl-btn" data-action="notifications" disabled title="Kéo thanh thông báo">
+                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+                  <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+                </svg>
+                <span>Thông báo</span>
+              </button>
+              <button type="button" class="ctrl-btn" data-action="rotate" disabled title="Xoay ngang / dọc màn hình">
+                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
+                  <path d="M3 3v5h5"></path>
+                  <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"></path>
+                </svg>
+                <span>Xoay</span>
+              </button>
+              <button type="button" class="ctrl-btn" id="btnSendFile" disabled title="Gửi tệp sang Download hoặc cài đặt APK">
+                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                  <polyline points="17 8 12 3 7 8"></polyline>
+                  <line x1="12" y1="3" x2="12" y2="15"></line>
+                </svg>
+                <span>Gửi tệp</span>
+              </button>
+              <button type="button" class="ctrl-btn" id="btnOpenScreenshots" title="Mở thư mục lưu ảnh chụp màn hình">
+                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+                </svg>
+                <span>Thư mục</span>
+              </button>
+            </div>
+          </section>
+        </div>
+
+        <!-- Inline Sidebar Drawer: Add Device (never covered by scrcpy overlay) -->
+        <div class="sidebar-drawer hidden" id="drawerAddDevice" aria-label="Thêm điện thoại mới">
+          <div class="drawer-head">
+            <button type="button" class="icon-btn mini" data-close-drawer aria-label="Quay lại">
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="15 18 9 12 15 6"></polyline>
+              </svg>
+            </button>
+            <h3>Thêm máy mới / Wi-Fi</h3>
+          </div>
+
+          <div class="seg-control" role="tablist">
+            <button type="button" class="seg-btn active" data-tab="connect" role="tab" aria-selected="true">Kết nối IP</button>
+            <button type="button" class="seg-btn" data-tab="pair" role="tab" aria-selected="false">Ghép Wi-Fi</button>
+            <button type="button" class="seg-btn" data-tab="guide" role="tab" aria-selected="false">Máy USB</button>
+          </div>
+
+          <div class="drawer-body">
+            <div class="tab-panel" id="tab-connect">
+              <p class="help-text">Nhập IP thiết bị đã bật Wi-Fi ADB (mặc định cổng 5555).</p>
+              <label class="field">
+                <span>Địa chỉ IP &amp; Cổng</span>
+                <input type="text" id="inputWifiAddr" placeholder="192.168.1.15:5555" />
+              </label>
+              <button type="button" class="btn-primary btn-full" id="btnDoWifiConnect">Kết nối Wi-Fi</button>
+            </div>
+
+            <div class="tab-panel hidden" id="tab-pair">
+              <p class="help-text">Trên Android 11+: <strong>Cài đặt cho người phát triển &rarr; Gỡ lỗi không dây &rarr; Ghép nối bằng mã</strong>.</p>
+              <label class="field">
+                <span>IP &amp; Cổng ghép nối</span>
+                <input type="text" id="inputPairAddr" placeholder="192.168.1.15:37123" />
+              </label>
+              <label class="field">
+                <span>Mã ghép nối 6 chữ số</span>
+                <input type="text" id="inputPairCode" placeholder="482910" maxlength="8" />
+              </label>
+              <label class="field">
+                <span>IP &amp; Cổng kết nối chính</span>
+                <input type="text" id="inputConnectAfterPair" placeholder="192.168.1.15:41256" />
+              </label>
+              <button type="button" class="btn-primary btn-full" id="btnDoWifiPair">Ghép nối &amp; Kết nối</button>
+            </div>
+
+            <div class="tab-panel hidden" id="tab-guide">
+              <ol class="guide-steps">
+                <li>Vào <strong>Cài đặt &rarr; Thông tin điện thoại &rarr; Thông tin phần mềm</strong>, bấm <strong>7 lần</strong> vào <strong>Số hiệu bản tạo</strong>.</li>
+                <li>Mở <strong>Cài đặt cho người phát triển</strong> và bật <strong>Gỡ lỗi USB</strong>.</li>
+                <li>Cắm cáp USB, tích <strong>Luôn cho phép</strong> rồi bấm <strong>Cho phép</strong>. Máy sẽ tự hiện và được lưu.</li>
+              </ol>
+            </div>
+          </div>
+        </div>
+
+        <!-- Inline Sidebar Drawer: All Installed Apps Launcher -->
+        <div class="sidebar-drawer hidden" id="drawerApps" aria-label="Danh sách ứng dụng trên điện thoại">
+          <div class="drawer-head">
+            <button type="button" class="icon-btn mini" data-close-drawer aria-label="Quay lại">
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="15 18 9 12 15 6"></polyline>
+              </svg>
+            </button>
+            <h3>Ứng dụng trên máy</h3>
+            <button type="button" class="icon-btn mini" id="btnReloadApps" title="Tải lại danh sách ứng dụng" aria-label="Tải lại danh sách ứng dụng">
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 12a9 9 0 1 1-2.64-6.36"></path>
+                <polyline points="21 3 21 9 15 9"></polyline>
+              </svg>
+            </button>
+          </div>
+          <label class="field">
+            <input type="search" id="inputSearchApps" placeholder="Tìm tên ứng dụng (VD: Zalo, Chrome...)" />
           </label>
-        </div>
-
-        <div id="deviceList" class="device-list" role="listbox" aria-label="Danh sách điện thoại">
-          <div class="empty-state">Đang dò thiết bị...</div>
-        </div>
-      </section>
-
-      <!-- Selected device primary actions -->
-      <section class="card" aria-labelledby="actionsHeading">
-        <div class="section-header">
-          <h2 class="section-title" id="actionsHeading">Điều khiển màn hình</h2>
-          <span class="selected-badge" id="selectedDeviceBadge">Chưa chọn máy</span>
-        </div>
-
-        <div class="primary-actions">
-          <button type="button" class="btn-primary" id="btnToggleMirror" disabled>
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <rect x="2" y="3" width="20" height="14" rx="2"></rect>
-              <line x1="8" y1="21" x2="16" y2="21"></line>
-              <line x1="12" y1="17" x2="12" y2="21"></line>
-            </svg>
-            <span id="mirrorBtnLabel">Mở màn hình điều khiển</span>
-          </button>
-
-          <button type="button" class="btn-secondary" id="btnScreenshot" disabled title="Chụp màn hình gốc (tự lưu file &amp; sao chép vào Clipboard)">
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
-              <circle cx="12" cy="13" r="4"></circle>
-            </svg>
-            <span>Chụp ảnh</span>
-          </button>
-        </div>
-
-        <!-- Mirror quality & options -->
-        <div class="options-bar">
-          <div class="quality-group" role="radiogroup" aria-label="Chất lượng hiển thị">
-            <button type="button" class="seg-btn" data-quality="lite">Nhẹ 30fps</button>
-            <button type="button" class="seg-btn active" data-quality="balanced">Mượt 60fps</button>
-            <button type="button" class="seg-btn" data-quality="high">Nét cao</button>
-          </div>
-          <div class="toggle-chips">
-            <label class="chip">
-              <input type="checkbox" id="chkTurnScreenOff" />
-              <span>Tắt màn ĐT</span>
-            </label>
-            <label class="chip">
-              <input type="checkbox" id="chkStayAwake" checked />
-              <span>Giữ sáng</span>
-            </label>
-            <label class="chip">
-              <input type="checkbox" id="chkAlwaysOnTop" />
-              <span>Luôn nổi</span>
-            </label>
-            <label class="chip">
-              <input type="checkbox" id="chkEnableAudio" checked />
-              <span>Âm thanh</span>
-            </label>
+          <div class="app-picker-list" id="appPickerList">
+            <div class="empty-inline">Chọn máy đang kết nối để tải danh sách ứng dụng.</div>
           </div>
         </div>
-      </section>
 
-      <!-- Hardware & navigation control pad -->
-      <section class="card" aria-labelledby="remoteHeading">
-        <div class="section-header">
-          <h2 class="section-title" id="remoteHeading">Phím điều khiển nhanh</h2>
-          <button type="button" class="text-link" id="btnSwitchWifi" disabled title="Chuyển thiết bị đang cắm cáp sang Wi-Fi để rút cáp dùng không dây">
-            Chuyển sang Wi-Fi
-          </button>
+        <!-- Inline Sidebar Drawer: Rename Device -->
+        <div class="sidebar-drawer hidden" id="drawerRename" aria-label="Đặt tên gợi nhớ thiết bị">
+          <div class="drawer-head">
+            <button type="button" class="icon-btn mini" data-close-drawer aria-label="Quay lại">
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="15 18 9 12 15 6"></polyline>
+              </svg>
+            </button>
+            <h3>Đặt tên gợi nhớ</h3>
+          </div>
+          <div class="drawer-body">
+            <label class="field">
+              <span>Tên hiển thị của thiết bị</span>
+              <input type="text" id="inputDeviceNickname" placeholder="VD: Samsung Note20 Ultra" maxlength="60" />
+            </label>
+            <div class="btn-row-2">
+              <button type="button" class="btn-outline" data-close-drawer>Hủy</button>
+              <button type="button" class="btn-primary" id="btnSaveRename">Lưu tên</button>
+            </div>
+          </div>
+        </div>
+      </aside>
+
+      <!-- Right Multi-Phone Mirroring Workspace -->
+      <main class="workspace-stage" id="workspaceStage" aria-label="Khu vực màn hình điện thoại">
+        <div class="stage-empty" id="stageEmpty">
+          <div class="stage-empty-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="6" y="2.5" width="12" height="19" rx="2.5"></rect>
+              <line x1="10.5" y1="18" x2="13.5" y2="18"></line>
+            </svg>
+          </div>
+          <h2 class="stage-empty-title">Khung điều khiển đa màn hình</h2>
+          <p class="stage-empty-desc">Bấm <strong>Mở màn hình</strong> bên trái để nhúng khung điện thoại vào đây, hoặc bật thử <strong>Demo lưới</strong> để xem cách tự sắp xếp nhiều máy theo các mức Zoom.</p>
+          <div class="stage-empty-actions">
+            <button type="button" class="btn-primary" id="btnEmptyStartMirror" disabled>Mở máy đang chọn</button>
+            <button type="button" class="btn-outline" id="btnEmptyDemo4">Xem thử Demo 4 máy</button>
+          </div>
         </div>
 
-        <!-- Navigation row -->
-        <div class="pad-grid pad-grid-3">
-          <button type="button" class="pad-btn" data-action="back" disabled>
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <polyline points="15 18 9 12 15 6"></polyline>
-            </svg>
-            <span>Quay lại</span>
-          </button>
-          <button type="button" class="pad-btn" data-action="home" disabled>
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <circle cx="12" cy="12" r="7"></circle>
-            </svg>
-            <span>Trang chủ</span>
-          </button>
-          <button type="button" class="pad-btn" data-action="recents" disabled>
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <rect x="5" y="5" width="14" height="14" rx="2"></rect>
-            </svg>
-            <span>Đa nhiệm</span>
-          </button>
-        </div>
+        <div class="stage-grid hidden" id="stageGrid"></div>
+      </main>
+    </div>
 
-        <!-- Hardware row -->
-        <div class="pad-grid pad-grid-4">
-          <button type="button" class="pad-btn" data-action="vol_down" disabled>
-            <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
-              <line x1="15" y1="12" x2="21" y2="12"></line>
-            </svg>
-            <span>Âm -</span>
-          </button>
-          <button type="button" class="pad-btn" data-action="vol_up" disabled>
-            <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
-              <line x1="18" y1="9" x2="18" y2="15"></line>
-              <line x1="15" y1="12" x2="21" y2="12"></line>
-            </svg>
-            <span>Âm +</span>
-          </button>
-          <button type="button" class="pad-btn" data-action="mute" disabled>
-            <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
-              <line x1="22" y1="9" x2="16" y2="15"></line>
-              <line x1="16" y1="9" x2="22" y2="15"></line>
-            </svg>
-            <span>Tắt tiếng</span>
-          </button>
-          <button type="button" class="pad-btn pad-btn-warn" data-action="power" disabled>
-            <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M18.36 6.64a9 9 0 1 1-12.73 0"></path>
-              <line x1="12" y1="2" x2="12" y2="12"></line>
-            </svg>
-            <span>Nguồn</span>
-          </button>
-        </div>
-
-        <!-- Utility row -->
-        <div class="pad-grid pad-grid-4">
-          <button type="button" class="pad-btn" data-action="notifications" disabled>
-            <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
-              <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
-            </svg>
-            <span>Thông báo</span>
-          </button>
-          <button type="button" class="pad-btn" data-action="rotate" disabled>
-            <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
-              <path d="M3 3v5h5"></path>
-              <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"></path>
-            </svg>
-            <span>Xoay</span>
-          </button>
-          <button type="button" class="pad-btn" id="btnSendFile" disabled>
-            <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-              <polyline points="17 8 12 3 7 8"></polyline>
-              <line x1="12" y1="3" x2="12" y2="15"></line>
-            </svg>
-            <span>Gửi tệp</span>
-          </button>
-          <button type="button" class="pad-btn" id="btnOpenScreenshots">
-            <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
-            </svg>
-            <span>Ảnh chụp</span>
-          </button>
-        </div>
-      </section>
-    </main>
-
-    <!-- Status / Toast footer -->
+    <!-- Bottom Status Bar -->
     <footer class="statusbar" id="statusBar" role="status" aria-live="polite">
-      <span id="statusMessage">Sẵn sàng. Cắm cáp USB hoặc thêm máy Wi-Fi để bắt đầu.</span>
-      <button type="button" class="text-link hidden" id="btnStatusAction"></button>
+      <div class="status-left">
+        <span id="statusMessage">Sẵn sàng. Cắm điện thoại USB hoặc thêm máy Wi-Fi để điều khiển.</span>
+        <button type="button" class="text-btn hidden" id="btnStatusAction"></button>
+      </div>
+      <div class="status-right" id="layoutSummaryText">Bố cục: Tự khớp</div>
     </footer>
   </div>
 
-  <!-- Add device / Wi-Fi modal -->
-  <div class="modal-backdrop hidden" id="wifiModal" role="dialog" aria-modal="true" aria-labelledby="wifiModalTitle">
-    <div class="modal">
-      <div class="modal-header">
-        <h3 id="wifiModalTitle">Thêm điện thoại mới / Kết nối Wi-Fi</h3>
-        <button type="button" class="icon-btn" id="btnCloseWifiModal" aria-label="Đóng">
-          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <line x1="18" y1="6" x2="6" y2="18"></line>
-            <line x1="6" y1="6" x2="18" y2="18"></line>
-          </svg>
-        </button>
-      </div>
-
-      <div class="modal-tabs" role="tablist">
-        <button type="button" class="tab-btn active" data-tab="connect" role="tab" aria-selected="true">Kết nối IP</button>
-        <button type="button" class="tab-btn" data-tab="pair" role="tab" aria-selected="false">Ghép Wi-Fi (Android 11+)</button>
-        <button type="button" class="tab-btn" data-tab="guide" role="tab" aria-selected="false">Thêm máy USB</button>
-      </div>
-
-      <div class="tab-panel" id="tab-connect">
-        <p class="help-text">Dùng cho máy đã bật Wi-Fi ADB (cổng 5555) hoặc đã từng chuyển sang Wi-Fi.</p>
-        <label class="field">
-          <span>Địa chỉ IP &amp; Cổng</span>
-          <input type="text" id="inputWifiAddr" placeholder="192.168.1.15:5555" />
-        </label>
-        <button type="button" class="btn-primary btn-full" id="btnDoWifiConnect">Kết nối ngay</button>
-      </div>
-
-      <div class="tab-panel hidden" id="tab-pair">
-        <p class="help-text">Trên điện thoại: <strong>Cài đặt cho người phát triển &rarr; Gỡ lỗi không dây &rarr; Ghép nối bằng mã ghép nối</strong>.</p>
-        <label class="field">
-          <span>IP &amp; Cổng ghép nối</span>
-          <input type="text" id="inputPairAddr" placeholder="192.168.1.15:37123" />
-        </label>
-        <label class="field">
-          <span>Mã ghép nối (6 số)</span>
-          <input type="text" id="inputPairCode" placeholder="482910" maxlength="8" />
-        </label>
-        <label class="field">
-          <span>IP &amp; Cổng kết nối chính (ở trang ngoài)</span>
-          <input type="text" id="inputConnectAfterPair" placeholder="192.168.1.15:41256" />
-        </label>
-        <button type="button" class="btn-primary btn-full" id="btnDoWifiPair">Ghép nối &amp; Kết nối</button>
-      </div>
-
-      <div class="tab-panel hidden" id="tab-guide">
-        <ol class="guide-steps">
-          <li>Trên điện thoại Android mới: vào <strong>Cài đặt &rarr; Thông tin điện thoại &rarr; Thông tin phần mềm</strong>, bấm <strong>7 lần</strong> vào <strong>Số hiệu bản tạo</strong>.</li>
-          <li>Quay lại mở <strong>Cài đặt cho người phát triển</strong> và bật <strong>Gỡ lỗi USB (USB debugging)</strong>.</li>
-          <li>Cắm cáp vào máy tính, tích <strong>Luôn cho phép</strong> rồi bấm <strong>Cho phép</strong>. Máy mới sẽ tự hiện trong danh sách và được lưu lại.</li>
-        </ol>
-      </div>
-    </div>
-  </div>
-
-  <!-- Rename device modal -->
-  <div class="modal-backdrop hidden" id="renameModal" role="dialog" aria-modal="true" aria-labelledby="renameModalTitle">
-    <div class="modal modal-sm">
-      <div class="modal-header">
-        <h3 id="renameModalTitle">Đặt tên gợi nhớ</h3>
-        <button type="button" class="icon-btn" id="btnCloseRenameModal" aria-label="Đóng">
-          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <line x1="18" y1="6" x2="6" y2="18"></line>
-            <line x1="6" y1="6" x2="18" y2="18"></line>
-          </svg>
-        </button>
-      </div>
-      <label class="field">
-        <span>Tên hiển thị</span>
-        <input type="text" id="inputDeviceNickname" placeholder="VD: Samsung Note20 Ultra" maxlength="60" />
-      </label>
-      <div class="modal-footer">
-        <button type="button" class="btn-outline" id="btnCancelRename">Hủy</button>
-        <button type="button" class="btn-primary" id="btnSaveRename">Lưu tên</button>
-      </div>
-    </div>
-  </div>
-
+  <script src="layout.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

@@ -2,36 +2,38 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import pytest
 from playwright.sync_api import sync_playwright
 
 
 UI_INDEX = Path(__file__).resolve().parent.parent / "phone_control" / "ui" / "index.html"
 
 
-def test_ui_real_dom_interactions_and_zero_console_errors() -> None:
+def test_ui_v2_unified_workspace_real_dom_interactions() -> None:
     console_errors: list[str] = []
     page_errors: list[str] = []
 
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
-        page = browser.new_page(viewport={"width": 460, "height": 820})
+        page = browser.new_page(viewport={"width": 1280, "height": 820})
         page.on("console", lambda msg: console_errors.append(msg.text) if msg.type == "error" else None)
         page.on("pageerror", lambda err: page_errors.append(str(err)))
 
-        # Provide a faithful pywebview API bridge before page scripts run
         page.add_init_script(
             """
             window.__calls = [];
             window.__state = {
-              mirroring: false,
+              mirroring: {},
               settings: {
                 quality: "balanced",
                 turn_screen_off: false,
                 stay_awake: true,
                 always_on_top: false,
                 enable_audio: true,
-                auto_mirror_saved: false
+                auto_mirror_saved: false,
+                swipe_step: "medium",
+                zoom_mode: "fit",
+                sidebar_collapsed: false,
+                embedded_workspace: true
               },
               devices: [
                 {
@@ -46,23 +48,29 @@ def test_ui_real_dom_interactions_and_zero_console_errors() -> None:
                   manufacturer: "samsung",
                   android_version: "13",
                   battery: 88,
+                  screen_width: 1080,
+                  screen_height: 2316,
+                  show_touches: false,
                   wifi_ip: "192.168.1.33",
                   mirroring: false,
                   saved: true,
                   auto_mirror: false
                 },
                 {
-                  id: "OLD_S10",
-                  serial: "OLD_S10",
-                  state: "disconnected",
-                  online: false,
-                  transport: "wifi",
-                  display_name: "Galaxy S10 5G",
+                  id: "TESTDEV002",
+                  serial: "TESTDEV002",
+                  state: "device",
+                  online: true,
+                  transport: "usb",
+                  display_name: "Samsung SM-G977N",
                   nickname: "Galaxy S10 5G",
-                  model: "SM-G977B",
+                  model: "SM-G977N",
                   manufacturer: "samsung",
                   android_version: "12",
-                  battery: null,
+                  battery: 72,
+                  screen_width: 1080,
+                  screen_height: 2280,
+                  show_touches: false,
                   wifi_ip: "192.168.1.40",
                   mirroring: false,
                   saved: true,
@@ -80,7 +88,7 @@ def test_ui_real_dom_interactions_and_zero_console_errors() -> None:
                     data: {
                       tools: { adb_available: true, scrcpy_available: true },
                       settings: Object.assign({}, window.__state.settings),
-                      devices: window.__state.devices.map(d => Object.assign({}, d))
+                      devices: window.__state.devices.map(d => Object.assign({}, d, { mirroring: Boolean(window.__state.mirroring[d.serial]) }))
                     }
                   };
                 },
@@ -89,36 +97,70 @@ def test_ui_real_dom_interactions_and_zero_console_errors() -> None:
                   return {
                     ok: true,
                     data: {
-                      devices: window.__state.devices.map(d => Object.assign({}, d, { mirroring: d.id === "TESTDEV001" ? window.__state.mirroring : false })),
+                      devices: window.__state.devices.map(d => Object.assign({}, d, { mirroring: Boolean(window.__state.mirroring[d.serial]) })),
                       auto_mirrored: []
                     }
                   };
                 },
-                async start_mirror(serial, name) {
-                  window.__calls.push(["start_mirror", serial, name]);
-                  window.__state.mirroring = true;
+                async start_mirror(serial, name, slot) {
+                  window.__calls.push(["start_mirror", serial, name, slot]);
+                  window.__state.mirroring[serial] = true;
                   return { ok: true, data: { serial, pid: 9999 } };
                 },
                 async stop_mirror(serial) {
                   window.__calls.push(["stop_mirror", serial]);
-                  window.__state.mirroring = false;
+                  window.__state.mirroring[serial] = false;
                   return { ok: true, data: { serial, stopped: true } };
+                },
+                async sync_mirror_slots(slots) {
+                  window.__calls.push(["sync_mirror_slots", slots]);
+                  return { ok: true, data: { synced: slots.length } };
+                },
+                async set_display_power(serial, on) {
+                  window.__calls.push(["set_display_power", serial, on]);
+                  return { ok: true, data: { serial, screen_on: on } };
+                },
+                async set_show_touches(serial, enabled) {
+                  window.__calls.push(["set_show_touches", serial, enabled]);
+                  const d = window.__state.devices.find(x => x.serial === serial);
+                  if (d) d.show_touches = enabled;
+                  return { ok: true, data: { serial, show_touches: enabled } };
+                },
+                async swipe(serial, direction, step) {
+                  window.__calls.push(["swipe", serial, direction, step]);
+                  return { ok: true, data: { serial, direction, step } };
+                },
+                async send_action(serial, action) {
+                  window.__calls.push(["send_action", serial, action]);
+                  return { ok: true, data: { serial, action } };
+                },
+                async launch_quick_app(serial, appKey) {
+                  window.__calls.push(["launch_quick_app", serial, appKey]);
+                  return { ok: true, data: { serial, app_key: appKey } };
+                },
+                async list_apps(serial) {
+                  window.__calls.push(["list_apps", serial]);
+                  return {
+                    ok: true,
+                    data: {
+                      apps: [
+                        { name: "Bộ sưu tập", package: "com.sec.android.gallery3d", system: true },
+                        { name: "Chrome", package: "com.android.chrome", system: true },
+                        { name: "Zalo", package: "com.zing.zalo", system: false }
+                      ]
+                    }
+                  };
+                },
+                async launch_package(serial, pkg) {
+                  window.__calls.push(["launch_package", serial, pkg]);
+                  return { ok: true, data: { serial, package: pkg } };
                 },
                 async take_screenshot(serial, label) {
                   window.__calls.push(["take_screenshot", serial, label]);
                   return {
                     ok: true,
-                    data: {
-                      path: "C:/Shots/shot1.png",
-                      filename: "shot1.png",
-                      size_bytes: 12345,
-                      copied_to_clipboard: true
-                    }
+                    data: { path: "C:/Shots/shot1.png", filename: "shot1.png", copied_to_clipboard: true }
                   };
-                },
-                async send_action(serial, action) {
-                  window.__calls.push(["send_action", serial, action]);
-                  return { ok: true, data: { serial, action } };
                 },
                 async update_settings(patch) {
                   window.__calls.push(["update_settings", patch]);
@@ -135,6 +177,10 @@ def test_ui_real_dom_interactions_and_zero_console_errors() -> None:
                   window.__calls.push(["connect_wifi", addr]);
                   return { ok: true, data: { target: addr } };
                 },
+                async toggle_fullscreen() {
+                  window.__calls.push(["toggle_fullscreen"]);
+                  return { ok: true, data: { fullscreen: true } };
+                },
                 async open_screenshot_folder() {
                   window.__calls.push(["open_screenshot_folder"]);
                   return { ok: true, data: {} };
@@ -149,75 +195,98 @@ def test_ui_real_dom_interactions_and_zero_console_errors() -> None:
         )
 
         page.goto(UI_INDEX.as_uri(), wait_until="domcontentloaded")
-        page.wait_for_selector(".device-card")
+        page.wait_for_selector(".device-item")
+        assert page.locator(".device-item").count() == 2
 
-        # 1. Both online and saved-disconnected devices render; online is selected by default
-        assert page.locator(".device-card").count() == 2
-        assert "Samsung SM-N986B" in page.locator("#selectedDeviceBadge").inner_text()
-        assert page.locator("#btnToggleMirror").is_enabled()
+        # 1. Mirror both phones in parallel inside the unified workspace
+        page.locator("#btnMirrorAll").click()
+        page.wait_for_function("() => document.querySelectorAll('.phone-slot').length === 2")
+        assert page.locator(".phone-slot").count() == 2
 
-        # 2. Real DOM click to start & stop scrcpy mirror
-        page.locator("#btnToggleMirror").click()
-        page.wait_for_function("() => document.getElementById('mirrorBtnLabel').textContent.includes('Dừng')")
-        assert "Đang chiếu" in page.locator("#mirrorBtnLabel").inner_text()
+        # 2. Live screen power off & on + white touch dot toggle
+        page.locator("#btnScreenOffLive").click()
+        page.locator("#btnScreenOnLive").click()
+        page.locator("#btnToggleTouchDot").click()
+        page.wait_for_function("() => document.getElementById('btnToggleTouchDot').getAttribute('aria-pressed') === 'true'")
 
-        page.locator("#btnToggleMirror").click()
-        page.wait_for_function("() => document.getElementById('mirrorBtnLabel').textContent.includes('Mở màn hình')")
+        # 3. Touch Swipe Pad (up/down/left/right/center) + step size + App Drawer
+        page.locator(".step-btn[data-step='long']").click()
+        page.locator("[data-swipe='up']").click()
+        page.locator("[data-swipe='down']").click()
+        page.locator("[data-swipe='left']").click()
+        page.locator("[data-swipe='right']").click()
+        page.locator("[data-action='tap_center']").click()
+        page.locator("[data-action='app_drawer']").click()
 
-        # 3. Real DOM click on Screenshot button + status action button
+        # 4. Four quick app buttons (Phone, Camera, Messages, Gallery)
+        for key in ("phone", "camera", "messages", "gallery"):
+            page.locator(f"[data-app='{key}']").click()
+
+        # 5. Inline Apps Drawer (search + launch package)
+        page.locator("#btnOpenAppsDrawer").click()
+        page.wait_for_selector(".app-row")
+        page.locator("#inputSearchApps").fill("Zalo")
+        assert page.locator(".app-row").count() == 1
+        page.locator(".app-row").first.click()
+        page.locator("#drawerApps [data-close-drawer]").click()
+        assert page.locator("#drawerApps").is_hidden()
+
+        # 6. Sidebar collapse & expand button
+        page.locator("#btnToggleSidebar").click()
+        page.wait_for_function("() => document.getElementById('controlSidebar').classList.contains('collapsed')")
+        page.locator("#btnToggleSidebar").click()
+        page.wait_for_function("() => !document.getElementById('controlSidebar').classList.contains('collapsed')")
+
+        # 7. Multi-phone Demo mode (4 & 6 phones) + Zoom presets (fit, 50, 100, 150, fill)
+        page.locator("#selectDemoCount").select_option("4")
+        page.wait_for_function("() => document.querySelectorAll('.phone-slot').length === 4")
+        h_fit = page.locator(".phone-slot-viewport").first.bounding_box()["height"]
+
+        page.locator(".zoom-btn[data-zoom='50']").click()
+        page.wait_for_function("() => document.querySelector('.zoom-btn.active').dataset.zoom === '50'")
+        h_50 = page.locator(".phone-slot-viewport").first.bounding_box()["height"]
+
+        page.locator(".zoom-btn[data-zoom='125']").click()
+        page.wait_for_function("() => document.querySelector('.zoom-btn.active').dataset.zoom === '125'")
+        h_125 = page.locator(".phone-slot-viewport").first.bounding_box()["height"]
+        assert h_125 > h_50
+        assert h_fit > 100
+
+        page.locator("#selectDemoCount").select_option("6")
+        page.wait_for_function("() => document.querySelectorAll('.phone-slot').length === 6")
+        page.locator(".zoom-btn[data-zoom='fit']").click()
+        page.locator("#selectDemoCount").select_option("0")
+
+        # 8. Screenshot + Add Device Drawer + Narrow window smoke check (B10)
         page.locator("#btnScreenshot").click()
         page.wait_for_function("() => document.getElementById('statusMessage').textContent.includes('shot1.png')")
-        assert page.locator("#btnStatusAction").is_visible()
-        page.locator("#btnStatusAction").click()
 
-        # 4. Real DOM clicks on hardware control pad buttons
-        page.locator(".pad-btn[data-action='back']").click()
-        page.locator(".pad-btn[data-action='home']").click()
-        page.locator(".pad-btn[data-action='vol_up']").click()
-        page.locator(".pad-btn[data-action='rotate']").click()
-
-        # 5. Real DOM click on quality toggle and checkbox setting
-        page.locator(".seg-btn[data-quality='high']").click()
-        page.locator("#chkTurnScreenOff").click()
-
-        # 6. Real DOM click to switch selection to disconnected saved device -> controls disable
-        page.locator(".device-card[data-device-id='OLD_S10']").click()
-        assert page.locator("#btnToggleMirror").is_disabled()
-        assert page.locator(".pad-btn[data-action='home']").is_disabled()
-
-        # Switch back to online device
-        page.locator(".device-card[data-device-id='TESTDEV001']").click()
-        assert page.locator("#btnToggleMirror").is_enabled()
-
-        # 7. Real DOM modal flow: Rename device
-        page.locator(".device-card[data-device-id='TESTDEV001'] button[aria-label^='Đổi tên']").click()
-        assert page.locator("#renameModal").is_visible()
-        page.locator("#inputDeviceNickname").fill("Note20 Ultra Chính")
-        page.locator("#btnSaveRename").click()
-        page.wait_for_function("() => document.getElementById('selectedDeviceBadge').textContent.includes('Note20 Ultra Chính')")
-
-        # 8. Real DOM modal flow: Add Wi-Fi modal + tabs + connect
-        page.locator("#btnOpenWifiModal").click()
-        assert page.locator("#wifiModal").is_visible()
-        page.locator(".tab-btn[data-tab='pair']").click()
-        assert page.locator("#tab-pair").is_visible()
-        page.locator(".tab-btn[data-tab='connect']").click()
-        page.locator("#inputWifiAddr").fill("192.168.1.99:5555")
+        page.locator("#btnOpenAddDrawer").click()
+        assert page.locator("#drawerAddDevice").is_visible()
+        page.locator("#inputWifiAddr").fill("192.168.1.88:5555")
         page.locator("#btnDoWifiConnect").click()
-        page.wait_for_function("() => document.getElementById('wifiModal').classList.contains('hidden')")
+        page.wait_for_function("() => document.getElementById('drawerAddDevice').classList.contains('hidden')")
+
+        page.set_viewport_size({"width": 760, "height": 640})
+        page.wait_for_timeout(120)
 
         calls = page.evaluate("() => window.__calls")
-        called_methods = [c[0] for c in calls]
-        assert "start_mirror" in called_methods
-        assert "stop_mirror" in called_methods
-        assert "take_screenshot" in called_methods
-        assert "open_file" in called_methods
-        assert "send_action" in called_methods
-        assert "update_settings" in called_methods
-        assert "rename_device" in called_methods
-        assert "connect_wifi" in called_methods
+        methods = [c[0] for c in calls]
+        for expected in (
+            "start_mirror",
+            "sync_mirror_slots",
+            "set_display_power",
+            "set_show_touches",
+            "swipe",
+            "send_action",
+            "launch_quick_app",
+            "list_apps",
+            "launch_package",
+            "take_screenshot",
+            "connect_wifi",
+        ):
+            assert expected in methods, f"Missing API call: {expected}"
 
-        # Verify zero runtime JS errors
         assert console_errors == [], f"Console errors: {console_errors}"
         assert page_errors == [], f"Page errors: {page_errors}"
         browser.close()

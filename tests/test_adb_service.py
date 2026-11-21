@@ -11,9 +11,12 @@ from phone_control.adb_service import (
     AdbScrcpyService,
     ToolPaths,
     build_scrcpy_args,
+    compute_swipe_coords,
     parse_adb_devices,
     parse_battery_level,
+    parse_scrcpy_app_list,
     parse_wifi_ip,
+    parse_wm_size,
 )
 
 
@@ -37,7 +40,7 @@ ZY2244FAKE             unauthorized transport_id:3
     assert devices[2]["state"] == "unauthorized"
 
 
-def test_parse_battery_and_wifi_ip() -> None:
+def test_parse_battery_wifi_wm_size_and_app_list() -> None:
     bat_out = "Current Battery Service state:\n  AC powered: false\n  level: 84\n  scale: 100\n"
     assert parse_battery_level(bat_out) == 84
     assert parse_battery_level("no level here") is None
@@ -46,13 +49,54 @@ def test_parse_battery_and_wifi_ip() -> None:
     assert parse_wifi_ip(ip_out) == "192.168.1.42"
     assert parse_wifi_ip("inet 127.0.0.1/8 scope host lo") == ""
 
+    # Samsung FHD+ mode reports both Physical and Override size; Override must win
+    wm_out = "Physical size: 1440x3040\nOverride size: 1080x2280\n"
+    assert parse_wm_size(wm_out) == (1080, 2280)
+    assert parse_wm_size("Physical size: 1080x2400\n") == (1080, 2400)
+    assert parse_wm_size("no size") is None
 
-def test_build_scrcpy_args_respects_profiles_and_flags(tmp_path: Path) -> None:
+    app_out = """[server] INFO: List of apps:
+ * Bộ sưu tập                     com.sec.android.gallery3d
+ - Zalo                           com.zing.zalo
+ * Chrome                         com.android.chrome
+"""
+    apps = parse_scrcpy_app_list(app_out)
+    assert len(apps) == 3
+    assert [a["package"] for a in apps] == [
+        "com.sec.android.gallery3d",
+        "com.android.chrome",
+        "com.zing.zalo",
+    ]
+    assert apps[2]["system"] is False
+
+
+def test_compute_swipe_coords_all_directions_and_steps() -> None:
+    x1, y1, x2, y2, dur_short = compute_swipe_coords(1080, 2280, "up", "short")
+    _, y1_long, _, y2_long, dur_long = compute_swipe_coords(1080, 2280, "up", "long")
+    assert x1 == x2 == 540
+    assert y1 > y2  # finger moves upward
+    assert (y1_long - y2_long) > (y1 - y2)
+    assert dur_long > dur_short
+
+    dx1, dy1, dx2, dy2, _ = compute_swipe_coords(1080, 2280, "down", "medium")
+    assert dx1 == dx2 and dy1 < dy2
+
+    lx1, ly1, lx2, ly2, _ = compute_swipe_coords(1080, 2280, "left", "medium")
+    assert ly1 == ly2 and lx1 > lx2
+
+    rx1, ry1, rx2, ry2, _ = compute_swipe_coords(1080, 2280, "right", "medium")
+    assert ry1 == ry2 and rx1 < rx2
+
+    with pytest.raises(ValueError, match="Hướng vuốt"):
+        compute_swipe_coords(1080, 2280, "diagonal")
+
+
+def test_build_scrcpy_args_borderless_and_initial_rect(tmp_path: Path) -> None:
     scrcpy_exe = tmp_path / "scrcpy.exe"
     args = build_scrcpy_args(
         scrcpy_exe,
         "TESTDEV001",
-        title="Samsung Note20",
+        title="PC_SLOT_TESTDEV001",
         settings={
             "quality": "lite",
             "stay_awake": True,
@@ -60,14 +104,69 @@ def test_build_scrcpy_args_respects_profiles_and_flags(tmp_path: Path) -> None:
             "always_on_top": True,
             "enable_audio": False,
         },
+        borderless=True,
+        initial_rect={"x": 320, "y": 80, "width": 360, "height": 760},
     )
-    assert "-s" in args and "TESTDEV001" in args
-    assert "--video-bit-rate=4M" in args
+    assert "--window-borderless" in args
+    assert "--always-on-top" not in args  # owned borderless mode avoids stealing global z-order
+    assert "--window-x=320" in args
+    assert "--window-width=360" in args
     assert "--max-fps=30" in args
-    assert "--max-size=1280" in args
-    assert "--turn-screen-off" in args
-    assert "--always-on-top" in args
     assert "--no-audio" in args
+
+
+def test_set_display_power_off_uses_headless_scrcpy_helper(tmp_path: Path) -> None:
+    adb_exe = tmp_path / "adb.exe"
+    scrcpy_exe = tmp_path / "scrcpy.exe"
+    adb_exe.write_bytes(b"")
+    scrcpy_exe.write_bytes(b"")
+
+    fake_proc = MagicMock()
+    fake_proc.poll.return_value = None
+    popen = MagicMock(return_value=fake_proc)
+    runner = MagicMock(return_value=_completed(stdout=""))
+
+    svc = AdbScrcpyService(
+        tools=ToolPaths(adb=adb_exe, scrcpy=scrcpy_exe),
+        runner=runner,
+        popen_factory=popen,
+    )
+
+    off_res = svc.set_display_power("TESTDEV001", on=False)
+    assert off_res["screen_on"] is False
+    helper_cmd = popen.call_args[0][0]
+    assert "--no-window" in helper_cmd
+    assert "--no-video" in helper_cmd
+    assert "--no-audio" in helper_cmd
+    assert "--turn-screen-off" in helper_cmd
+    fake_proc.terminate.assert_called_once()
+
+    on_res = svc.set_display_power("TESTDEV001", on=True)
+    assert on_res["screen_on"] is True
+    assert runner.call_args[0][0][-1] == "224"
+
+
+def test_quick_apps_fallback_and_package_validation(tmp_path: Path) -> None:
+    adb_exe = tmp_path / "adb.exe"
+    adb_exe.write_bytes(b"")
+    runner = MagicMock(
+        side_effect=[
+            _completed(stdout="Error: Activity not started, unable to resolve Intent"),
+            _completed(stdout="Events injected: 1"),
+            _completed(stdout="Events injected: 1"),
+        ]
+    )
+    svc = AdbScrcpyService(tools=ToolPaths(adb=adb_exe, scrcpy=None), runner=runner)
+
+    res = svc.launch_quick_app("TESTDEV001", "gallery")
+    assert res["app_key"] == "gallery"
+    assert runner.call_count == 2  # fell back to Samsung gallery3d
+
+    pkg_res = svc.launch_package("TESTDEV001", "com.android.chrome")
+    assert pkg_res["package"] == "com.android.chrome"
+
+    with pytest.raises(ValueError, match="Tên gói ứng dụng"):
+        svc.launch_package("TESTDEV001", "com.evil; rm -rf /")
 
 
 def test_screenshot_validates_png_saves_and_copies_clipboard(tmp_path: Path) -> None:
@@ -107,22 +206,7 @@ def test_screenshot_rejects_corrupt_or_secure_payload(tmp_path: Path) -> None:
         svc.take_screenshot("TESTDEV001", output_dir=tmp_path)
 
 
-def test_send_action_keyevents_and_invalid_action(tmp_path: Path) -> None:
-    adb_exe = tmp_path / "adb.exe"
-    adb_exe.write_bytes(b"")
-    runner = MagicMock(return_value=_completed(stdout=""))
-    svc = AdbScrcpyService(tools=ToolPaths(adb=adb_exe, scrcpy=None), runner=runner)
-
-    res = svc.send_action("TESTDEV001", "home")
-    assert res["action"] == "home"
-    called_cmd = runner.call_args[0][0]
-    assert called_cmd[-4:] == ["shell", "input", "keyevent", "3"]
-
-    with pytest.raises(ValueError, match="không hợp lệ"):
-        svc.send_action("TESTDEV001", "explode")
-
-
-def test_send_file_apk_vs_regular(tmp_path: Path) -> None:
+def test_send_action_show_touches_and_send_file(tmp_path: Path) -> None:
     adb_exe = tmp_path / "adb.exe"
     adb_exe.write_bytes(b"")
     apk = tmp_path / "app.apk"
@@ -130,13 +214,20 @@ def test_send_file_apk_vs_regular(tmp_path: Path) -> None:
     doc = tmp_path / "note.pdf"
     doc.write_bytes(b"pdf")
 
-    runner = MagicMock(side_effect=[_completed(stdout="Success"), _completed(stdout="1 file pushed")])
+    runner = MagicMock(
+        side_effect=[
+            _completed(stdout=""),
+            _completed(stdout=""),
+            _completed(stdout="Success"),
+            _completed(stdout="1 file pushed"),
+        ]
+    )
     svc = AdbScrcpyService(tools=ToolPaths(adb=adb_exe, scrcpy=None), runner=runner)
 
-    r1 = svc.send_file("TESTDEV001", str(apk))
-    assert r1["mode"] == "apk"
-    assert "install" in runner.call_args_list[0][0][0]
+    assert svc.send_action("TESTDEV001", "home")["action"] == "home"
+    assert svc.set_show_touches("TESTDEV001", True)["show_touches"] is True
+    assert svc.send_file("TESTDEV001", str(apk))["mode"] == "apk"
+    assert svc.send_file("TESTDEV001", str(doc))["mode"] == "push"
 
-    r2 = svc.send_file("TESTDEV001", str(doc))
-    assert r2["mode"] == "push"
-    assert "push" in runner.call_args_list[1][0][0]
+    with pytest.raises(ValueError, match="không hợp lệ"):
+        svc.send_action("TESTDEV001", "explode")

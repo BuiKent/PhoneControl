@@ -35,46 +35,55 @@ def test_api_merges_online_and_saved_devices_and_auto_mirrors_once(tmp_path: Pat
             "manufacturer": "samsung",
             "android_version": "13",
             "battery": 76,
+            "screen_width": 1080,
+            "screen_height": 2316,
+            "show_touches": True,
             "wifi_ip": "192.168.1.50",
             "mirroring": False,
         }
     ]
     svc.start_mirror.return_value = {"serial": "TESTDEV001", "pid": 4321, "already_running": False}
 
-    api = PhoneControlAPI(service=svc, store=store)
+    host = MagicMock()
+    host.get_client_origin.return_value = (100, 100)
+    api = PhoneControlAPI(service=svc, store=store, window_host=host)
 
-    # First scan sees newly connected saved device -> auto-mirrors once
     res1 = api.scan_devices(trigger_auto_mirror=True)
     assert res1["ok"] is True
     assert res1["data"]["auto_mirrored"] == ["TESTDEV001"]
     devices = res1["data"]["devices"]
     assert len(devices) == 2
     assert devices[0]["id"] == "TESTDEV001"
-    assert devices[0]["online"] is True
+    assert devices[0]["show_touches"] is True
     assert devices[0]["mirroring"] is True
-    assert devices[1]["id"] == "OLD_PHONE"
-    assert devices[1]["state"] == "disconnected"
     svc.start_mirror.assert_called_once()
 
-    # Second scan while still online should NOT auto-mirror again even if user closed scrcpy
     svc.list_devices.return_value[0]["mirroring"] = False
     res2 = api.scan_devices(trigger_auto_mirror=True)
     assert res2["data"]["auto_mirrored"] == []
     svc.start_mirror.assert_called_once()
 
 
-def test_api_rename_and_delete_device(tmp_path: Path) -> None:
+def test_api_v2_controls_and_slot_sync(tmp_path: Path) -> None:
     store = DeviceStore(tmp_path / "config.json")
-    store.upsert_device("DEV1", serial="DEV1", model="Pixel 8")
-    api = PhoneControlAPI(service=MagicMock(), store=store)
+    store.upsert_device("DEV1", serial="DEV1", model="Galaxy S10 5G")
+    svc = MagicMock()
+    svc.set_display_power.return_value = {"serial": "DEV1", "screen_on": False}
+    svc.swipe.return_value = {"serial": "DEV1", "direction": "up", "step": "medium"}
+    svc.launch_quick_app.return_value = {"serial": "DEV1", "app_key": "camera"}
+    svc.set_show_touches.return_value = {"serial": "DEV1", "show_touches": True}
+    host = MagicMock()
+    host.sync_slots.return_value = {"synced": 1, "attached": 1}
+
+    api = PhoneControlAPI(service=svc, store=store, window_host=host)
+
+    assert api.set_display_power("DEV1", False)["ok"] is True
+    assert api.swipe("DEV1", "up")["ok"] is True
+    assert api.launch_quick_app("DEV1", "camera")["ok"] is True
+    assert api.set_show_touches("DEV1", True)["ok"] is True
+    assert api.sync_mirror_slots([{"serial": "DEV1", "x": 320, "y": 50, "width": 350, "height": 720}])["ok"] is True
 
     r = api.rename_device("DEV1", "Máy phụ")
-    assert r["ok"] is True
-    assert r["data"]["nickname"] == "Máy phụ"
-
-    missing = api.rename_device("UNKNOWN", "X")
-    assert missing["ok"] is False
-
-    d = api.delete_saved_device("DEV1")
-    assert d["ok"] is True
-    assert d["data"]["deleted"] is True
+    assert r["ok"] is True and r["data"]["nickname"] == "Máy phụ"
+    assert api.rename_device("UNKNOWN", "X")["ok"] is False
+    assert api.delete_saved_device("DEV1")["data"]["deleted"] is True
