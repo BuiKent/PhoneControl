@@ -1,7 +1,7 @@
 (function (root) {
   "use strict";
 
-  const POLL_INTERVAL_MS = 2500;
+  const POLL_INTERVAL_MS = 2200;
   const ZOOM_LABELS = {
     fit: "Tự khớp",
     fill: "Lấp đầy",
@@ -11,6 +11,61 @@
     "125": "125%",
     "150": "150%",
   };
+
+  // Curated fallback vector glyphs + brand colors for built-in Samsung/Android system apps
+  const BUILTIN_APP_STYLES = [
+    { match: /gallery|photos/i, bg: "#e11d48", svg: '<rect x="4" y="4" width="16" height="16" rx="3"/><circle cx="9" cy="9" r="1.5"/><polyline points="20 15 15 10 5 20"/>' },
+    { match: /camera/i, bg: "#dc2626", svg: '<path d="M21 18a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2h3l2-3h4l2 3h3a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="3.5"/>' },
+    { match: /dialer|telecom|incallui|phone/i, bg: "#16a34a", svg: '<path d="M20 16.5v2.5a2 2 0 0 1-2.18 2A17 17 0 0 1 4 7.18 2 2 0 0 1 6 5h2.5l1.5 4-2 1.5a13 13 0 0 0 5.5 5.5l1.5-2z"/>' },
+    { match: /messaging|mms/i, bg: "#2563eb", svg: '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>' },
+    { match: /settings/i, bg: "#475569", svg: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.09a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.09a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>' },
+    { match: /contacts/i, bg: "#ea580c", svg: '<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>' },
+    { match: /clock|alarm/i, bg: "#0284c7", svg: '<circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15.5 14"/>' },
+    { match: /calendar/i, bg: "#0d9488", svg: '<rect x="3" y="5" width="18" height="16" rx="2"/><line x1="16" y1="3" x2="16" y2="7"/><line x1="8" y1="3" x2="8" y2="7"/><line x1="3" y1="10" x2="21" y2="10"/>' },
+    { match: /notes|memo/i, bg: "#ca8a04", svg: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="13" y2="17"/>' },
+    { match: /calculator|popupcalculator/i, bg: "#059669", svg: '<rect x="5" y="3" width="14" height="18" rx="2"/><line x1="8" y1="7" x2="16" y2="7"/><line x1="8" y1="12" x2="10" y2="12"/><line x1="14" y1="12" x2="16" y2="12"/><line x1="8" y1="16" x2="10" y2="16"/><line x1="14" y1="16" x2="16" y2="16"/>' },
+    { match: /myfiles|documentsui|files/i, bg: "#d97706", svg: '<path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>' },
+    { match: /browser|sbrowser|chrome/i, bg: "#2563eb", svg: '<circle cx="12" cy="12" r="9"/><line x1="3" y1="12" x2="21" y2="12"/><path d="M12 3a14 14 0 0 1 4 9 14 14 0 0 1-4 9 14 14 0 0 1-4-9 14 14 0 0 1 4-9z"/>' },
+    { match: /voicenote|recorder/i, bg: "#e11d48", svg: '<path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/>' },
+    { match: /vending|galaxyapps|store/i, bg: "#0284c7", svg: '<path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/>' },
+    { match: /lool|care|health/i, bg: "#10b981", svg: '<polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>' },
+  ];
+
+  const PALETTE_SWATCHES = ["#0284c7", "#0d9488", "#2563eb", "#059669", "#d97706", "#dc2626", "#4f46e5", "#7c3aed"];
+
+  function hashColor(str) {
+    let h = 0;
+    for (let i = 0; i < str.length; i += 1) h = (h * 31 + str.charCodeAt(i)) >>> 0;
+    return PALETTE_SWATCHES[h % PALETTE_SWATCHES.length];
+  }
+
+  function initials(name) {
+    const words = (name || "A").trim().split(/\s+/);
+    if (words.length >= 2) return (words[0][0] + words[1][0]).toUpperCase();
+    return (words[0] || "A").slice(0, 2).toUpperCase();
+  }
+
+  function buildAppIconNode(doc, app) {
+    const box = doc.createElement("div");
+    box.className = "app-icon-box";
+    if (app.icon) {
+      box.style.background = "#0f172a";
+      const img = doc.createElement("img");
+      img.src = app.icon;
+      img.alt = "";
+      box.appendChild(img);
+      return box;
+    }
+    const preset = BUILTIN_APP_STYLES.find((p) => p.match.test(app.package));
+    if (preset) {
+      box.style.background = preset.bg;
+      box.innerHTML = `<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="#ffffff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${preset.svg}</svg>`;
+      return box;
+    }
+    box.style.background = hashColor(app.package || app.name);
+    box.textContent = initials(app.name);
+    return box;
+  }
 
   function createController(doc, getApi, layoutLib) {
     const layoutEngine = layoutLib || root.PhoneControlLayout;
@@ -31,11 +86,16 @@
         embedded_workspace: true,
       },
       tools: null,
+      phoneOnlyMode: false,
       demoCount: 0,
-      activeDrawer: null, // null | "add" | "apps" | "rename"
+      activeDrawer: null, // null | "add" | "apps" | "diag" | "rename"
       renamingDeviceId: null,
       installedApps: [],
+      appFilter: "all", // all | user
       appsSerialLoaded: null,
+      iconMap: {},
+      iconFetching: false,
+      diagnostics: null,
       lastScreenshotPath: "",
       pollTimer: null,
       resizeObserver: null,
@@ -44,14 +104,24 @@
     };
 
     const el = {
+      appShell: doc.getElementById("appShell"),
+      miniStrip: doc.getElementById("miniStrip"),
+      btnExitPhoneOnly: doc.getElementById("btnExitPhoneOnly"),
+      miniStripDeviceName: doc.getElementById("miniStripDeviceName"),
+      btnMiniScreenOff: doc.getElementById("btnMiniScreenOff"),
+      btnMiniAlwaysOnTop: doc.getElementById("btnMiniAlwaysOnTop"),
+      btnMiniRotate: doc.getElementById("btnMiniRotate"),
+      btnMiniScreenshot: doc.getElementById("btnMiniScreenshot"),
+
       btnToggleSidebar: doc.getElementById("btnToggleSidebar"),
       controlSidebar: doc.getElementById("controlSidebar"),
-      sidebarMainView: doc.getElementById("sidebarMainView"),
       toolStatusText: doc.getElementById("toolStatusText"),
-      zoomBar: doc.getElementById("zoomBar"),
       selectDemoCount: doc.getElementById("selectDemoCount"),
+      btnAlwaysOnTop: doc.getElementById("btnAlwaysOnTop"),
       btnTopScreenOff: doc.getElementById("btnTopScreenOff"),
-      btnTopScreenshot: doc.getElementById("btnTopScreenshot"),
+      topScreenOffLabel: doc.getElementById("topScreenOffLabel"),
+      btnOpenDiagDrawer: doc.getElementById("btnOpenDiagDrawer"),
+      btnPhoneOnly: doc.getElementById("btnPhoneOnly"),
       btnOpenAddDrawer: doc.getElementById("btnOpenAddDrawer"),
       btnToggleFullscreen: doc.getElementById("btnToggleFullscreen"),
 
@@ -65,19 +135,23 @@
       btnToggleMirror: doc.getElementById("btnToggleMirror"),
       mirrorBtnLabel: doc.getElementById("mirrorBtnLabel"),
       btnScreenshot: doc.getElementById("btnScreenshot"),
-      btnScreenOffLive: doc.getElementById("btnScreenOffLive"),
-      btnScreenOnLive: doc.getElementById("btnScreenOnLive"),
+      btnToggleScreenOff: doc.getElementById("btnToggleScreenOff"),
+      sidebarScreenOffLabel: doc.getElementById("sidebarScreenOffLabel"),
       btnToggleTouchDot: doc.getElementById("btnToggleTouchDot"),
+      btnSideAlwaysOnTop: doc.getElementById("btnSideAlwaysOnTop"),
       chkTurnScreenOff: doc.getElementById("chkTurnScreenOff"),
       chkStayAwake: doc.getElementById("chkStayAwake"),
       chkEnableAudio: doc.getElementById("chkEnableAudio"),
 
       btnOpenAppsDrawer: doc.getElementById("btnOpenAppsDrawer"),
+      btnSideDiagDrawer: doc.getElementById("btnSideDiagDrawer"),
+      btnRotate: doc.getElementById("btnRotate"),
       btnSendFile: doc.getElementById("btnSendFile"),
       btnOpenScreenshots: doc.getElementById("btnOpenScreenshots"),
 
       drawerAddDevice: doc.getElementById("drawerAddDevice"),
       drawerApps: doc.getElementById("drawerApps"),
+      drawerDiagnostics: doc.getElementById("drawerDiagnostics"),
       drawerRename: doc.getElementById("drawerRename"),
       inputWifiAddr: doc.getElementById("inputWifiAddr"),
       btnDoWifiConnect: doc.getElementById("btnDoWifiConnect"),
@@ -88,6 +162,8 @@
       inputSearchApps: doc.getElementById("inputSearchApps"),
       btnReloadApps: doc.getElementById("btnReloadApps"),
       appPickerList: doc.getElementById("appPickerList"),
+      btnReloadDiag: doc.getElementById("btnReloadDiag"),
+      diagBody: doc.getElementById("diagBody"),
       inputDeviceNickname: doc.getElementById("inputDeviceNickname"),
       btnSaveRename: doc.getElementById("btnSaveRename"),
 
@@ -110,6 +186,7 @@
     const actionButtons = Array.from(doc.querySelectorAll("[data-action]"));
     const quickAppButtons = Array.from(doc.querySelectorAll("[data-app]"));
     const tabButtons = Array.from(doc.querySelectorAll("#drawerAddDevice .seg-btn[data-tab]"));
+    const appFilterButtons = Array.from(doc.querySelectorAll("#drawerApps .seg-btn[data-app-filter]"));
     const closeDrawerButtons = Array.from(doc.querySelectorAll("[data-close-drawer]"));
 
     let statusActionHandler = null;
@@ -153,6 +230,22 @@
       el.btnToggleSidebar.setAttribute("aria-expanded", collapsed ? "false" : "true");
     }
 
+    function applyPhoneOnlyState() {
+      el.appShell.classList.toggle("phone-only", state.phoneOnlyMode);
+      el.miniStrip.classList.toggle("hidden", !state.phoneOnlyMode);
+      renderWorkspaceStage();
+    }
+
+    function renderAlwaysOnTopState() {
+      const pinned = Boolean(state.settings.always_on_top);
+      el.btnAlwaysOnTop.classList.toggle("active", pinned);
+      el.btnAlwaysOnTop.setAttribute("aria-pressed", pinned ? "true" : "false");
+      el.btnSideAlwaysOnTop.classList.toggle("active", pinned);
+      el.btnSideAlwaysOnTop.setAttribute("aria-pressed", pinned ? "true" : "false");
+      el.btnMiniAlwaysOnTop.classList.toggle("active", pinned);
+      el.btnMiniAlwaysOnTop.setAttribute("aria-pressed", pinned ? "true" : "false");
+    }
+
     function renderToolStatus() {
       if (!state.tools) return;
       if (state.tools.adb_available && state.tools.scrcpy_available) {
@@ -183,6 +276,7 @@
         btn.classList.toggle("active", btn.dataset.zoom === String(s.zoom_mode));
       }
       applySidebarState();
+      renderAlwaysOnTopState();
     }
 
     function buildDeviceMeta(dev) {
@@ -194,6 +288,7 @@
       const bits = [];
       if (dev.android_version) bits.push(`Android ${dev.android_version}`);
       if (typeof dev.battery === "number") bits.push(`${dev.battery}%`);
+      if (dev.orientation === 1 || dev.orientation === 3) bits.push("Ngang");
       if (dev.wifi_ip) bits.push(dev.wifi_ip);
       return bits.join(" • ") || dev.serial;
     }
@@ -337,29 +432,50 @@
       if (!dev) {
         el.selectedDeviceBadge.textContent = "Chưa chọn máy";
         el.selectedDeviceBadge.className = "device-pill";
+        el.miniStripDeviceName.textContent = "Phone Control";
       } else if (dev.online) {
         el.selectedDeviceBadge.textContent = dev.display_name;
         el.selectedDeviceBadge.className = "device-pill online";
+        el.miniStripDeviceName.textContent = dev.display_name;
       } else {
         el.selectedDeviceBadge.textContent = `${dev.display_name} (chưa cắm)`;
         el.selectedDeviceBadge.className = "device-pill";
+        el.miniStripDeviceName.textContent = dev.display_name;
       }
 
       el.btnToggleMirror.disabled = !canControl;
       el.btnEmptyStartMirror.disabled = !canControl;
       el.btnScreenshot.disabled = !canControl;
-      el.btnTopScreenshot.disabled = !canControl;
-      el.btnScreenOffLive.disabled = !canControl;
+      el.btnMiniScreenshot.disabled = !canControl;
+      el.btnMiniRotate.disabled = !canControl;
+      el.btnToggleScreenOff.disabled = !canControl;
       el.btnTopScreenOff.disabled = !canControl;
-      el.btnScreenOnLive.disabled = !canControl;
+      el.btnMiniScreenOff.disabled = !canControl;
       el.btnToggleTouchDot.disabled = !canControl;
       el.btnOpenAppsDrawer.disabled = !canControl;
+      el.btnOpenDiagDrawer.disabled = !canControl;
+      el.btnSideDiagDrawer.disabled = !canControl;
       el.btnSendFile.disabled = !canControl;
       el.btnSwitchWifi.disabled = !(canControl && dev.transport === "usb");
+
+      // Lit UI states for toggle buttons
+      const screenOff = Boolean(dev && dev.screen_off);
+      const offLabel = screenOff ? "Màn ĐT: Tắt" : "Tắt màn ĐT";
+      el.sidebarScreenOffLabel.textContent = offLabel;
+      el.topScreenOffLabel.textContent = offLabel;
+      el.btnMiniScreenOff.textContent = offLabel;
+      for (const b of [el.btnToggleScreenOff, el.btnTopScreenOff, el.btnMiniScreenOff]) {
+        b.classList.toggle("active-amber", screenOff);
+        b.setAttribute("aria-pressed", screenOff ? "true" : "false");
+      }
 
       const touchOn = Boolean(dev && dev.show_touches);
       el.btnToggleTouchDot.classList.toggle("active", touchOn);
       el.btnToggleTouchDot.setAttribute("aria-pressed", touchOn ? "true" : "false");
+
+      const isLandscape = Boolean(dev && (dev.orientation === 1 || dev.orientation === 3));
+      el.btnRotate.classList.toggle("active", isLandscape);
+      el.btnRotate.setAttribute("aria-pressed", isLandscape ? "true" : "false");
 
       if (dev && dev.mirroring) {
         el.btnToggleMirror.classList.add("stop-mode");
@@ -432,6 +548,7 @@
         const card = doc.createElement("div");
         card.className = "phone-slot" + (!item.demo && item.id === state.selectedId ? " selected" : "");
         card.dataset.slotSerial = item.serial;
+        card.dataset.landscape = slotGeom.landscape ? "true" : "false";
         card.style.width = `${slotGeom.cardWidth}px`;
         card.style.height = `${slotGeom.cardHeight}px`;
 
@@ -463,13 +580,13 @@
         if (!item.demo) {
           const offBtn = doc.createElement("button");
           offBtn.type = "button";
-          offBtn.className = "icon-btn mini";
-          offBtn.title = "Tắt màn hình vật lý máy này";
-          offBtn.setAttribute("aria-label", `Tắt màn hình ${item.display_name}`);
+          offBtn.className = "icon-btn mini" + (item.screen_off ? " active-amber" : "");
+          offBtn.title = item.screen_off ? "Bật sáng lại màn hình máy này" : "Tắt màn hình vật lý máy này";
+          offBtn.setAttribute("aria-label", `Tắt hoặc bật màn hình ${item.display_name}`);
           offBtn.innerHTML = '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>';
           offBtn.addEventListener("click", (evt) => {
             evt.stopPropagation();
-            handleDisplayPowerFor(item, false);
+            toggleDisplayPowerFor(item);
           });
           tools.appendChild(offBtn);
 
@@ -586,15 +703,21 @@
       });
     }
 
-    // Drawer navigation (lives inside left sidebar so scrcpy overlay never occludes forms)
+    // Inline Sidebar Drawers
     function openDrawer(name) {
+      if (state.phoneOnlyMode) {
+        state.phoneOnlyMode = false;
+        applyPhoneOnlyState();
+      }
       if (state.settings.sidebar_collapsed) {
         state.settings.sidebar_collapsed = false;
         applySidebarState();
+        renderWorkspaceStage();
       }
       state.activeDrawer = name;
       el.drawerAddDevice.classList.toggle("hidden", name !== "add");
       el.drawerApps.classList.toggle("hidden", name !== "apps");
+      el.drawerDiagnostics.classList.toggle("hidden", name !== "diag");
       el.drawerRename.classList.toggle("hidden", name !== "rename");
     }
 
@@ -603,6 +726,7 @@
       state.renamingDeviceId = null;
       el.drawerAddDevice.classList.add("hidden");
       el.drawerApps.classList.add("hidden");
+      el.drawerDiagnostics.classList.add("hidden");
       el.drawerRename.classList.add("hidden");
     }
 
@@ -614,13 +738,14 @@
       el.inputDeviceNickname.select();
     }
 
+    // Phone-Style Icon Grid App Drawer
     async function openAppsDrawer(forceRefresh = false) {
       const dev = getSelectedDevice();
       if (!dev || !dev.online) return;
       openDrawer("apps");
       el.inputSearchApps.value = "";
       if (!forceRefresh && state.appsSerialLoaded === dev.serial && state.installedApps.length > 0) {
-        renderAppsList("");
+        renderAppsGrid("");
         el.inputSearchApps.focus();
         return;
       }
@@ -632,31 +757,82 @@
       }
       state.installedApps = res.data.apps || [];
       state.appsSerialLoaded = dev.serial;
-      renderAppsList("");
+      for (const a of state.installedApps) {
+        if (a.icon) state.iconMap[a.package] = a.icon;
+      }
+      renderAppsGrid("");
       el.inputSearchApps.focus();
+      loadMissingIconsInBackground();
     }
 
-    function renderAppsList(query) {
+    async function loadMissingIconsInBackground() {
+      if (state.iconFetching) return;
+      const missing = state.installedApps
+        .filter((a) => !a.icon && !state.iconMap[a.package] && !BUILTIN_APP_STYLES.some((p) => p.match.test(a.package)))
+        .map((a) => a.package);
+      if (missing.length === 0) return;
+
+      state.iconFetching = true;
+      try {
+        // Fetch in small batches so icons appear progressively without stalling UI
+        for (let i = 0; i < missing.length; i += 24) {
+          const chunk = missing.slice(i, i + 24);
+          const res = await callApi("fetch_app_icons", chunk);
+          if (res.ok && res.data && res.data.icons) {
+            const icons = res.data.icons;
+            let updated = false;
+            for (const pkg of Object.keys(icons)) {
+              state.iconMap[pkg] = icons[pkg];
+              updated = true;
+            }
+            if (updated && state.activeDrawer === "apps") {
+              for (const app of state.installedApps) {
+                if (state.iconMap[app.package]) app.icon = state.iconMap[app.package];
+              }
+              renderAppsGrid(el.inputSearchApps.value);
+            }
+          }
+        }
+      } finally {
+        state.iconFetching = false;
+      }
+    }
+
+    function renderAppsGrid(query) {
       const q = (query || "").trim().toLowerCase();
-      const filtered = q
-        ? state.installedApps.filter(
-            (a) => a.name.toLowerCase().includes(q) || a.package.toLowerCase().includes(q)
-          )
-        : state.installedApps;
+      let list = state.installedApps;
+      if (state.appFilter === "user") {
+        list = list.filter((a) => !a.system);
+      }
+      if (q) {
+        list = list.filter((a) => a.name.toLowerCase().includes(q) || a.package.toLowerCase().includes(q));
+      }
+
       el.appPickerList.innerHTML = "";
-      if (filtered.length === 0) {
+      if (list.length === 0) {
         el.appPickerList.innerHTML = '<div class="empty-inline">Không tìm thấy ứng dụng phù hợp.</div>';
         return;
       }
+
       const dev = getSelectedDevice();
-      for (const app of filtered) {
-        const btn = doc.createElement("button");
-        btn.type = "button";
-        btn.className = "app-row";
-        btn.innerHTML = `<div><div class="app-row-name"></div><div class="app-row-pkg"></div></div>`;
-        btn.querySelector(".app-row-name").textContent = app.name;
-        btn.querySelector(".app-row-pkg").textContent = app.package;
-        btn.addEventListener("click", async () => {
+      const grid = doc.createElement("div");
+      grid.className = "app-icon-grid";
+
+      for (const app of list) {
+        const tile = doc.createElement("button");
+        tile.type = "button";
+        tile.className = "app-tile";
+        tile.title = `${app.name} (${app.package})`;
+
+        const iconObj = Object.assign({}, app, { icon: app.icon || state.iconMap[app.package] || "" });
+        tile.appendChild(buildAppIconNode(doc, iconObj));
+
+        const lbl = doc.createElement("span");
+        lbl.className = "app-tile-label";
+        lbl.textContent = app.name;
+        tile.appendChild(lbl);
+
+        tile.addEventListener("click", async () => {
           if (!dev || !dev.online) return;
           setStatus(`Đang mở ${app.name}...`, "neutral");
           const res = await callApi("launch_package", dev.serial, app.package);
@@ -666,8 +842,203 @@
             setStatus(`Đã mở ${app.name}.`, "success");
           }
         });
-        el.appPickerList.appendChild(btn);
+        grid.appendChild(tile);
       }
+      el.appPickerList.appendChild(grid);
+    }
+
+    // Diagnostics & Health Drawer
+    async function openDiagnosticsDrawer() {
+      const dev = getSelectedDevice();
+      if (!dev || !dev.online) return;
+      openDrawer("diag");
+      el.diagBody.innerHTML = '<div class="empty-inline">Đang đo pin, RAM, sóng Wi-Fi và kiểm tra lỗi ứng dụng...</div>';
+      const res = await callApi("get_diagnostics", dev.serial);
+      if (!res.ok) {
+        el.diagBody.innerHTML = `<div class="empty-inline">${res.error || "Không đọc được chẩn đoán máy."}</div>`;
+        return;
+      }
+      state.diagnostics = res.data;
+      dev.pointer_location = Boolean(res.data.pointer_location);
+      renderDiagnosticsPanel(dev, res.data);
+    }
+
+    function renderDiagnosticsPanel(dev, diag) {
+      el.diagBody.innerHTML = "";
+      const bat = diag.battery || {};
+      const mem = diag.memory || {};
+      const sto = diag.storage || {};
+      const wifi = diag.wifi || {};
+
+      // 1. Battery & Performance block
+      const batBlock = doc.createElement("div");
+      batBlock.className = "diag-block";
+      const tempWarn = typeof bat.temperature_c === "number" && bat.temperature_c >= 40;
+      const healthGood = bat.health_code === 2;
+      batBlock.innerHTML = `
+        <div class="diag-block-title">Pin &amp; Hiệu năng</div>
+        <div class="diag-grid-2">
+          <div class="diag-stat">
+            <span class="diag-stat-label">Mức pin • Trạng thái</span>
+            <span class="diag-stat-val">${bat.level != null ? bat.level + "%" : "—"} • ${bat.status_label || "—"}</span>
+          </div>
+          <div class="diag-stat">
+            <span class="diag-stat-label">Nhiệt độ • Điện áp</span>
+            <span class="diag-stat-val ${tempWarn ? "warn" : ""}">${bat.temperature_c != null ? bat.temperature_c + "°C" : "—"} • ${bat.voltage_v != null ? bat.voltage_v + "V" : "—"}</span>
+          </div>
+          <div class="diag-stat">
+            <span class="diag-stat-label">Sức khỏe pin</span>
+            <span class="diag-stat-val ${healthGood ? "good" : "warn"}">${bat.health_label || "—"}</span>
+          </div>
+          <div class="diag-stat">
+            <span class="diag-stat-label">Công nghệ</span>
+            <span class="diag-stat-val">${bat.technology || "Li-ion"}</span>
+          </div>
+        </div>
+        <div class="meter-row">
+          <div class="meter-head"><span>RAM đang dùng</span><span>${mem.used_gb != null ? `${mem.used_gb} / ${mem.total_gb} GB (${mem.used_pct}%)` : "—"}</span></div>
+          <div class="meter-track"><div class="meter-fill ${(mem.used_pct || 0) >= 85 ? "warn" : ""}" style="width:${mem.used_pct || 0}%"></div></div>
+        </div>
+        <div class="meter-row">
+          <div class="meter-head"><span>Bộ nhớ trong</span><span>${sto.used_gb != null ? `${sto.used_gb} / ${sto.total_gb} GB (${sto.used_pct}%)` : "—"}</span></div>
+          <div class="meter-track"><div class="meter-fill ${(sto.used_pct || 0) >= 85 ? "warn" : ""}" style="width:${sto.used_pct || 0}%"></div></div>
+        </div>
+      `;
+      const perfBtns = doc.createElement("div");
+      perfBtns.className = "btn-row-2";
+
+      const saverBtn = doc.createElement("button");
+      saverBtn.type = "button";
+      saverBtn.className = "ctrl-btn" + (diag.power_save ? " active-amber" : "");
+      saverBtn.id = "btnDiagBatterySaver";
+      saverBtn.textContent = diag.power_save ? "Tiết kiệm pin: Bật" : "Tiết kiệm pin";
+      saverBtn.addEventListener("click", async () => {
+        const next = !diag.power_save;
+        const r = await callApi("set_battery_saver", dev.serial, next);
+        if (r.ok) {
+          diag.power_save = next;
+          renderDiagnosticsPanel(dev, diag);
+          setStatus(next ? "Đã bật chế độ Tiết kiệm pin." : "Đã tắt chế độ Tiết kiệm pin.", "success");
+        } else {
+          setStatus(r.error || "Không đổi được tiết kiệm pin.", "error");
+        }
+      });
+
+      const cleanBtn = doc.createElement("button");
+      cleanBtn.type = "button";
+      cleanBtn.className = "ctrl-btn";
+      cleanBtn.id = "btnDiagClearBg";
+      cleanBtn.textContent = "Dọn app chạy nền";
+      cleanBtn.addEventListener("click", async () => {
+        const r = await callApi("clear_background_processes", dev.serial);
+        if (r.ok) {
+          setStatus("Đã dọn các tiến trình chạy nền để giải phóng RAM.", "success");
+          openDiagnosticsDrawer();
+        } else {
+          setStatus(r.error || "Không dọn được tiến trình nền.", "error");
+        }
+      });
+
+      perfBtns.appendChild(saverBtn);
+      perfBtns.appendChild(cleanBtn);
+      batBlock.appendChild(perfBtns);
+      el.diagBody.appendChild(batBlock);
+
+      // 2. Screen & Touch Fault Diagnostics
+      const touchBlock = doc.createElement("div");
+      touchBlock.className = "diag-block";
+      touchBlock.innerHTML = `<div class="diag-block-title">Kiểm tra màn hình &amp; Cảm ứng lỗi</div>`;
+      const touchBtns = doc.createElement("div");
+      touchBtns.className = "btn-row-2";
+
+      const ptrBtn = doc.createElement("button");
+      ptrBtn.type = "button";
+      ptrBtn.id = "btnDiagPointerGrid";
+      ptrBtn.className = "ctrl-btn" + (diag.pointer_location ? " active" : "");
+      ptrBtn.textContent = diag.pointer_location ? "Lưới cảm ứng: Bật" : "Lưới test cảm ứng";
+      ptrBtn.title = "Vẽ đường tọa độ X/Y trên màn hình để kiểm tra điểm chết / loạn cảm ứng";
+      ptrBtn.addEventListener("click", async () => {
+        const next = !diag.pointer_location;
+        const r = await callApi("set_pointer_location", dev.serial, next);
+        if (r.ok) {
+          diag.pointer_location = next;
+          dev.pointer_location = next;
+          renderDiagnosticsPanel(dev, diag);
+          setStatus(next ? "Đã bật lưới vẽ test cảm ứng trên điện thoại." : "Đã tắt lưới test cảm ứng.", "success");
+        } else {
+          setStatus(r.error || "Không bật được lưới cảm ứng.", "error");
+        }
+      });
+      touchBtns.appendChild(ptrBtn);
+
+      const hwBtn = doc.createElement("button");
+      hwBtn.type = "button";
+      hwBtn.id = "btnDiagSamsungHw";
+      hwBtn.className = "ctrl-btn";
+      hwBtn.textContent = "Test phần cứng *#0*#";
+      hwBtn.title = "Mở trình test RGB điểm chết màn hình, cảm ứng & loa của Samsung";
+      hwBtn.addEventListener("click", async () => {
+        const r = await callApi("launch_samsung_hw_test", dev.serial);
+        if (r.ok) {
+          setStatus("Đã mở trình test phần cứng Samsung trên điện thoại.", "success");
+        } else {
+          setStatus(r.error || "Không mở được trình test phần cứng.", "error");
+        }
+      });
+      touchBtns.appendChild(hwBtn);
+      touchBlock.appendChild(touchBtns);
+      el.diagBody.appendChild(touchBlock);
+
+      // 3. Connectivity & Recent App Crashes/ANRs
+      const connBlock = doc.createElement("div");
+      connBlock.className = "diag-block";
+      connBlock.innerHTML = `
+        <div class="diag-block-title">Kết nối mạng &amp; Ứng dụng lỗi</div>
+        <div class="diag-grid-2">
+          <div class="diag-stat">
+            <span class="diag-stat-label">Wi-Fi • Sóng</span>
+            <span class="diag-stat-val">${wifi.ssid || "—"} (${wifi.quality || "—"})</span>
+          </div>
+          <div class="diag-stat">
+            <span class="diag-stat-label">Tốc độ • Ping</span>
+            <span class="diag-stat-val">${wifi.link_mbps != null ? wifi.link_mbps + " Mbps" : "—"} • ${diag.ping_ms != null ? diag.ping_ms + " ms" : "Lỗi mạng"}</span>
+          </div>
+        </div>
+      `;
+
+      const crashes = diag.crashes || [];
+      if (crashes.length === 0) {
+        const okMsg = doc.createElement("div");
+        okMsg.className = "help-text";
+        okMsg.textContent = "Không ghi nhận ứng dụng nào bị Crash / Treo (ANR) gần đây.";
+        connBlock.appendChild(okMsg);
+      } else {
+        for (const c of crashes.slice(0, 6)) {
+          const item = doc.createElement("div");
+          item.className = "crash-item";
+          const info = doc.createElement("div");
+          info.className = "crash-info";
+          info.innerHTML = `<div class="crash-pkg"></div><div class="crash-meta"></div>`;
+          info.querySelector(".crash-pkg").textContent = c.package || c.type;
+          info.querySelector(".crash-meta").textContent = `${c.type} • ${c.timestamp}`;
+          item.appendChild(info);
+
+          if (c.package) {
+            const stopBtn = doc.createElement("button");
+            stopBtn.type = "button";
+            stopBtn.className = "btn-outline xs";
+            stopBtn.textContent = "Buộc dừng";
+            stopBtn.addEventListener("click", async () => {
+              const r = await callApi("force_stop_package", dev.serial, c.package);
+              if (r.ok) setStatus(`Đã buộc dừng ${c.package}.`, "success");
+              else setStatus(r.error || "Không buộc dừng được.", "error");
+            });
+            item.appendChild(stopBtn);
+          }
+          connBlock.appendChild(item);
+        }
+      }
+      el.diagBody.appendChild(connBlock);
     }
 
     // Core API Actions
@@ -708,6 +1079,20 @@
       }
     }
 
+    async function handleToggleAlwaysOnTop() {
+      const next = !Boolean(state.settings.always_on_top);
+      state.settings.always_on_top = next;
+      renderAlwaysOnTopState();
+      const res = await callApi("set_always_on_top", next);
+      if (!res.ok) {
+        state.settings.always_on_top = !next;
+        renderAlwaysOnTopState();
+        setStatus(res.error || "Không bật/tắt được chế độ Luôn nổi.", "error");
+      } else {
+        setStatus(next ? "Đã ghim cửa sổ luôn nổi trên cùng." : "Đã tắt chế độ luôn nổi.", "success");
+      }
+    }
+
     async function startMirrorForDevice(dev) {
       if (!dev || !dev.online) return;
       if (state.demoCount > 0) {
@@ -715,7 +1100,6 @@
         el.selectDemoCount.value = "0";
       }
       setStatus(`Đang mở màn hình ${dev.display_name}...`, "neutral");
-      // Optimistically show slot so we can compute exact target rect for scrcpy
       dev.mirroring = true;
       renderWorkspaceStage();
 
@@ -757,11 +1141,8 @@
 
     async function toggleMirrorForDevice(dev) {
       if (!dev || !dev.online) return;
-      if (dev.mirroring) {
-        await stopMirrorForDevice(dev);
-      } else {
-        await startMirrorForDevice(dev);
-      }
+      if (dev.mirroring) await stopMirrorForDevice(dev);
+      else await startMirrorForDevice(dev);
     }
 
     async function handleMirrorAllOnline() {
@@ -775,15 +1156,24 @@
       }
     }
 
-    async function handleDisplayPowerFor(dev, on) {
+    async function toggleDisplayPowerFor(dev) {
       if (!dev || !dev.online) return;
-      setStatus(on ? `Đang bật sáng màn hình ${dev.display_name}...` : `Đang tắt màn hình vật lý ${dev.display_name} (giữ điều khiển)...`, "neutral");
-      const res = await callApi("set_display_power", dev.serial, on);
+      const wantOn = Boolean(dev.screen_off);
+      setStatus(wantOn ? `Đang bật sáng lại màn hình ${dev.display_name}...` : `Đang tắt màn hình vật lý ${dev.display_name} (giữ ĐK)...`, "neutral");
+      const res = await callApi("set_display_power", dev.serial, wantOn);
       if (!res.ok) {
         setStatus(res.error || "Không điều chỉnh được màn hình vật lý.", "error");
-      } else {
-        setStatus(on ? `Đã bật sáng màn hình ${dev.display_name}.` : `Đã tắt màn hình vật lý ${dev.display_name} — vẫn điều khiển bình thường.`, "success");
+        return;
       }
+      dev.screen_off = !wantOn;
+      renderControlStates();
+      renderWorkspaceStage();
+      setStatus(
+        wantOn
+          ? `Đã bật sáng lại màn hình ${dev.display_name}.`
+          : `Đã tắt màn hình vật lý ${dev.display_name} — vẫn điều khiển trên PC bình thường.`,
+        "success"
+      );
     }
 
     async function handleToggleTouchDot() {
@@ -804,9 +1194,7 @@
       const dev = getSelectedDevice();
       if (!dev || !dev.online) return;
       const res = await callApi("swipe", dev.serial, direction, state.settings.swipe_step);
-      if (!res.ok) {
-        setStatus(res.error || "Không gửi được thao tác vuốt.", "error");
-      }
+      if (!res.ok) setStatus(res.error || "Không gửi được thao tác vuốt.", "error");
     }
 
     async function handleAction(action) {
@@ -815,6 +1203,21 @@
       const res = await callApi("send_action", dev.serial, action);
       if (!res.ok) {
         setStatus(res.error || "Không gửi được lệnh điều khiển.", "error");
+        return;
+      }
+      if (action === "rotate" && res.data) {
+        dev.orientation = res.data.orientation;
+        if (res.data.screen_width && res.data.screen_height) {
+          dev.screen_width = res.data.screen_width;
+          dev.screen_height = res.data.screen_height;
+        }
+        renderControlStates();
+        renderWorkspaceStage();
+        setTimeout(() => syncNativeOverlaySlots(), 250);
+        setStatus(
+          dev.orientation === 1 || dev.orientation === 3 ? "Đã xoay ngang khung theo điện thoại." : "Đã xoay dọc khung theo điện thoại.",
+          "success"
+        );
       }
     }
 
@@ -822,9 +1225,7 @@
       const dev = getSelectedDevice();
       if (!dev || !dev.online) return;
       const res = await callApi("launch_quick_app", dev.serial, appKey);
-      if (!res.ok) {
-        setStatus(res.error || "Không mở được ứng dụng nhanh.", "error");
-      }
+      if (!res.ok) setStatus(res.error || "Không mở được ứng dụng nhanh.", "error");
     }
 
     async function handleScreenshotFor(dev) {
@@ -954,6 +1355,19 @@
         saveSettingPatch({ sidebar_collapsed: !state.settings.sidebar_collapsed });
       });
 
+      el.btnPhoneOnly.addEventListener("click", () => {
+        state.phoneOnlyMode = true;
+        applyPhoneOnlyState();
+      });
+      el.btnExitPhoneOnly.addEventListener("click", () => {
+        state.phoneOnlyMode = false;
+        applyPhoneOnlyState();
+      });
+
+      el.btnAlwaysOnTop.addEventListener("click", handleToggleAlwaysOnTop);
+      el.btnSideAlwaysOnTop.addEventListener("click", handleToggleAlwaysOnTop);
+      el.btnMiniAlwaysOnTop.addEventListener("click", handleToggleAlwaysOnTop);
+
       el.btnToggleFullscreen.addEventListener("click", () => {
         callApi("toggle_fullscreen");
         setTimeout(() => scheduleStageRender(), 180);
@@ -980,11 +1394,12 @@
       el.btnRefresh.addEventListener("click", () => refreshDevices(false));
 
       el.btnScreenshot.addEventListener("click", () => handleScreenshotFor(getSelectedDevice()));
-      el.btnTopScreenshot.addEventListener("click", () => handleScreenshotFor(getSelectedDevice()));
+      el.btnMiniScreenshot.addEventListener("click", () => handleScreenshotFor(getSelectedDevice()));
+      el.btnMiniRotate.addEventListener("click", () => handleAction("rotate"));
 
-      el.btnScreenOffLive.addEventListener("click", () => handleDisplayPowerFor(getSelectedDevice(), false));
-      el.btnTopScreenOff.addEventListener("click", () => handleDisplayPowerFor(getSelectedDevice(), false));
-      el.btnScreenOnLive.addEventListener("click", () => handleDisplayPowerFor(getSelectedDevice(), true));
+      el.btnToggleScreenOff.addEventListener("click", () => toggleDisplayPowerFor(getSelectedDevice()));
+      el.btnTopScreenOff.addEventListener("click", () => toggleDisplayPowerFor(getSelectedDevice()));
+      el.btnMiniScreenOff.addEventListener("click", () => toggleDisplayPowerFor(getSelectedDevice()));
       el.btnToggleTouchDot.addEventListener("click", handleToggleTouchDot);
 
       el.btnSwitchWifi.addEventListener("click", handleSwitchWifi);
@@ -1023,7 +1438,18 @@
       });
       el.btnOpenAppsDrawer.addEventListener("click", () => openAppsDrawer(false));
       el.btnReloadApps.addEventListener("click", () => openAppsDrawer(true));
-      el.inputSearchApps.addEventListener("input", () => renderAppsList(el.inputSearchApps.value));
+      el.inputSearchApps.addEventListener("input", () => renderAppsGrid(el.inputSearchApps.value));
+      for (const btn of appFilterButtons) {
+        btn.addEventListener("click", () => {
+          state.appFilter = btn.dataset.appFilter;
+          for (const b of appFilterButtons) b.classList.toggle("active", b === btn);
+          renderAppsGrid(el.inputSearchApps.value);
+        });
+      }
+
+      el.btnOpenDiagDrawer.addEventListener("click", openDiagnosticsDrawer);
+      el.btnSideDiagDrawer.addEventListener("click", openDiagnosticsDrawer);
+      el.btnReloadDiag.addEventListener("click", openDiagnosticsDrawer);
 
       for (const btn of closeDrawerButtons) {
         btn.addEventListener("click", closeDrawers);
@@ -1039,20 +1465,27 @@
         if (evt.key === "Escape") closeDrawers();
       });
 
-      // Keyboard shortcuts (Ctrl+B toggle sidebar, F11 fullscreen)
+      // Keyboard shortcuts
       doc.addEventListener("keydown", (evt) => {
-        if ((evt.ctrlKey || evt.metaKey) && evt.key.toLowerCase() === "b") {
+        if ((evt.ctrlKey || evt.metaKey) && evt.shiftKey && evt.key.toLowerCase() === "h") {
+          evt.preventDefault();
+          state.phoneOnlyMode = !state.phoneOnlyMode;
+          applyPhoneOnlyState();
+        } else if ((evt.ctrlKey || evt.metaKey) && evt.key.toLowerCase() === "b") {
           evt.preventDefault();
           saveSettingPatch({ sidebar_collapsed: !state.settings.sidebar_collapsed });
         } else if (evt.key === "F11") {
           evt.preventDefault();
           callApi("toggle_fullscreen");
-        } else if (evt.key === "Escape" && state.activeDrawer) {
-          closeDrawers();
+        } else if (evt.key === "Escape") {
+          if (state.activeDrawer) closeDrawers();
+          else if (state.phoneOnlyMode) {
+            state.phoneOnlyMode = false;
+            applyPhoneOnlyState();
+          }
         }
       });
 
-      // Keep docked scrcpy windows locked to viewport slots during scroll/resize
       el.workspaceStage.addEventListener("scroll", () => syncNativeOverlaySlots(), { passive: true });
       root.addEventListener("resize", () => scheduleStageRender());
       if (typeof ResizeObserver !== "undefined") {

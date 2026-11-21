@@ -13,19 +13,15 @@
     const w = Number(item && item.screen_width);
     const h = Number(item && item.screen_height);
     if (w > 100 && h > 100) {
-      return Math.max(0.35, Math.min(2.2, w / h));
+      // Support both tall portrait phones (~0.43) and wide landscape phones (~2.35)
+      return Math.max(0.35, Math.min(2.6, w / h));
     }
     return DEFAULT_ASPECT;
   }
 
   /**
    * Compute optimal multi-phone slot geometry inside the workspace stage.
-   *
-   * Modes:
-   *  - "fit": choose grid (cols x rows) that maximizes visible screen area without scrolling.
-   *  - "fill": tighter padding/gaps to fill maximum desktop real estate while keeping aspect ratio.
-   *  - "50" | "75" | "100" | "125" | "150": fixed scale relative to reference viewport height,
-   *    wrapping cleanly across columns and allowing vertical scroll if needed.
+   * Respects each device's live portrait or landscape orientation.
    */
   function computeWorkspaceLayout(stageWidth, stageHeight, items, zoomMode) {
     const count = Array.isArray(items) ? items.length : 0;
@@ -57,7 +53,7 @@
         const cellW = (innerW - gap * (cols - 1)) / cols;
         const cellH = (innerH - gap * (rows - 1)) / rows;
         const maxVideoH = cellH - SLOT_HEADER_HEIGHT;
-        if (cellW < 80 || maxVideoH < 100) continue;
+        if (cellW < 80 || maxVideoH < 80) continue;
 
         let totalArea = 0;
         const candidateSlots = [];
@@ -71,16 +67,17 @@
             videoH = videoW / aspect;
           }
           videoW = Math.max(80, Math.floor(videoW));
-          videoH = Math.max(100, Math.floor(videoH));
+          videoH = Math.max(80, Math.floor(videoH));
           totalArea += videoW * videoH;
           candidateSlots.push({
             id: items[i].id,
             serial: items[i].serial,
+            landscape: aspect > 1.05,
             videoWidth: videoW,
             videoHeight: videoH,
             cardWidth: videoW,
             cardHeight: videoH + SLOT_HEADER_HEIGHT,
-            scalePct: Math.round((videoH / BASE_ZOOM_HEIGHT) * 100),
+            scalePct: Math.round((Math.max(videoW, videoH) / BASE_ZOOM_HEIGHT) * 100),
           });
         }
 
@@ -90,20 +87,20 @@
       }
 
       if (!best) {
-        // Fallback for very small window
         const fallbackW = Math.max(120, Math.floor(innerW));
-        const fallbackH = Math.max(160, Math.floor(innerH - SLOT_HEADER_HEIGHT));
+        const fallbackH = Math.max(120, Math.floor(innerH - SLOT_HEADER_HEIGHT));
         best = {
           cols: 1,
           rows: count,
           slots: items.map((item) => ({
             id: item.id,
             serial: item.serial,
+            landscape: safeAspect(item) > 1.05,
             videoWidth: fallbackW,
             videoHeight: fallbackH,
             cardWidth: fallbackW,
             cardHeight: fallbackH + SLOT_HEADER_HEIGHT,
-            scalePct: Math.round((fallbackH / BASE_ZOOM_HEIGHT) * 100),
+            scalePct: Math.round((Math.max(fallbackW, fallbackH) / BASE_ZOOM_HEIGHT) * 100),
           })),
         };
       }
@@ -119,15 +116,23 @@
       };
     }
 
-    // Percentage zoom mode (50%, 75%, 100%, 125%, 150%)
+    // Fixed percentage zoom mode (50%, 75%, 100%, 125%, 150%)
     const pct = Number(mode);
-    const refH = Math.max(480, Math.min(innerH - SLOT_HEADER_HEIGHT, BASE_ZOOM_HEIGHT));
-    const targetVideoH = Math.max(180, Math.round((refH * pct) / 100));
+    const refLongSide = Math.max(480, Math.min(Math.max(innerW, innerH - SLOT_HEADER_HEIGHT), BASE_ZOOM_HEIGHT));
+    const targetLongSide = Math.max(180, Math.round((refLongSide * pct) / 100));
 
     const slots = items.map((item) => {
       const aspect = safeAspect(item);
-      let videoH = targetVideoH;
-      let videoW = Math.round(videoH * aspect);
+      let videoW;
+      let videoH;
+      if (aspect > 1.05) {
+        // Landscape phone: scale by width so landscape frame stays generous
+        videoW = targetLongSide;
+        videoH = Math.round(videoW / aspect);
+      } else {
+        videoH = targetLongSide;
+        videoW = Math.round(videoH * aspect);
+      }
       if (videoW > innerW) {
         videoW = Math.max(120, innerW);
         videoH = Math.round(videoW / aspect);
@@ -135,6 +140,7 @@
       return {
         id: item.id,
         serial: item.serial,
+        landscape: aspect > 1.05,
         videoWidth: videoW,
         videoHeight: videoH,
         cardWidth: videoW,

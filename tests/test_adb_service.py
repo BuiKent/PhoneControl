@@ -12,10 +12,17 @@ from phone_control.adb_service import (
     ToolPaths,
     build_scrcpy_args,
     compute_swipe_coords,
+    oriented_dimensions,
     parse_adb_devices,
+    parse_battery_info,
     parse_battery_level,
+    parse_meminfo,
+    parse_orientation,
+    parse_recent_crashes,
     parse_scrcpy_app_list,
+    parse_storage_df,
     parse_wifi_ip,
+    parse_wifi_signal,
     parse_wm_size,
 )
 
@@ -231,3 +238,59 @@ def test_send_action_show_touches_and_send_file(tmp_path: Path) -> None:
 
     with pytest.raises(ValueError, match="không hợp lệ"):
         svc.send_action("TESTDEV001", "explode")
+
+
+def test_orientation_and_diagnostics_parsers() -> None:
+    assert parse_orientation("      SurfaceOrientation: 1\n") == 1
+    assert parse_orientation("    mCurrentOrientation=3\n") == 3
+    assert oriented_dimensions(1080, 2280, 0) == (1080, 2280)
+    assert oriented_dimensions(1080, 2280, 1) == (2280, 1080)
+
+    bat = parse_battery_info(
+        "  status: 2\n  health: 2\n  level: 65\n  voltage: 4073\n  temperature: 353\n  technology: Li-ion\n"
+    )
+    assert bat["level"] == 65
+    assert bat["temperature_c"] == 35.3
+    assert bat["voltage_v"] == 4.07
+    assert bat["health_label"] == "Tốt"
+    assert bat["status_label"] == "Đang sạc"
+
+    mem = parse_meminfo("MemTotal:        8000000 kB\nMemAvailable:    3000000 kB\n")
+    assert mem["used_pct"] == 62
+
+    sto = parse_storage_df("/dev/block/sda33 209715200 52428800 157286400 25% /data\n")
+    assert sto["used_pct"] == 25 and sto["free_gb"] == 150.0
+
+    wifi = parse_wifi_signal('0 0 "Sweethome 2g" 20:be:b4:20:4f:f6 rssi=-55 link=195')
+    assert wifi["ssid"] == "Sweethome 2g"
+    assert wifi["rssi_dbm"] == -55
+    assert wifi["link_mbps"] == 195
+    assert wifi["quality"] == "Rất mạnh"
+
+    crashes = parse_recent_crashes(
+        "2026-11-21 19:10:00 data_app_crash (text, 1234 bytes) com.example.broken\n"
+        "2026-11-21 19:20:00 data_app_anr (text, 2000 bytes) com.example.frozen\n"
+    )
+    assert len(crashes) == 2
+    assert crashes[0]["package"] == "com.example.frozen"
+    assert "ANR" in crashes[0]["type"]
+
+
+def test_rotate_updates_effective_landscape_dimensions(tmp_path: Path) -> None:
+    adb_exe = tmp_path / "adb.exe"
+    adb_exe.write_bytes(b"")
+    runner = MagicMock(
+        side_effect=[
+            _completed(stdout="SurfaceOrientation: 0\n"),  # get_current_orientation
+            _completed(stdout=""),  # accelerometer_rotation 0
+            _completed(stdout=""),  # user_rotation 1
+            _completed(stdout="MFR=samsung\nMDL=SM-G977N\nVER=12\nSER=TESTDEV001\nPhysical size: 1440x3040\nOverride size: 1080x2280\nSurfaceOrientation: 1\n"),
+            _completed(stdout="level: 70\n"),
+        ]
+    )
+    svc = AdbScrcpyService(tools=ToolPaths(adb=adb_exe, scrcpy=None), runner=runner)
+    res = svc.send_action("TESTDEV001", "rotate")
+    assert res["orientation"] == 1
+    assert res["screen_width"] == 2280
+    assert res["screen_height"] == 1080
+

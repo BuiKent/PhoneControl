@@ -7,11 +7,31 @@
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <div class="app-shell">
+  <div class="app-shell" id="appShell">
+    <!-- Minimal 26px bar shown ONLY in Phone-Only (hide all toolbars) mode -->
+    <div class="mini-strip hidden" id="miniStrip" role="toolbar" aria-label="Thanh khôi phục giao diện">
+      <div class="mini-strip-left">
+        <button type="button" class="mini-pill" id="btnExitPhoneOnly" title="Hiện lại toàn bộ thanh công cụ (Ctrl+Shift+H)">
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="4" width="18" height="16" rx="2"></rect>
+            <line x1="9" y1="4" x2="9" y2="20"></line>
+          </svg>
+          <span>Hiện thanh công cụ</span>
+        </button>
+        <span class="mini-strip-name" id="miniStripDeviceName">Phone Control</span>
+      </div>
+      <div class="mini-strip-right">
+        <button type="button" class="mini-pill" id="btnMiniScreenOff" disabled aria-pressed="false" title="Tắt / Bật màn hình vật lý điện thoại">Tắt màn ĐT</button>
+        <button type="button" class="mini-pill" id="btnMiniAlwaysOnTop" aria-pressed="false" title="Ghim cửa sổ luôn nổi trên cùng">Luôn nổi</button>
+        <button type="button" class="mini-pill" id="btnMiniRotate" disabled title="Xoay ngang / dọc">Xoay</button>
+        <button type="button" class="mini-pill" id="btnMiniScreenshot" disabled title="Chụp ảnh màn hình">Chụp ảnh</button>
+      </div>
+    </div>
+
     <!-- Unified Topbar -->
-    <header class="topbar">
+    <header class="topbar" id="mainTopbar">
       <div class="topbar-left">
-        <button type="button" class="icon-btn" id="btnToggleSidebar" title="Ẩn / Hiện bảng điều khiển (Ctrl+B)" aria-label="Ẩn hoặc hiện bảng điều khiển" aria-expanded="true">
+        <button type="button" class="icon-btn" id="btnToggleSidebar" title="Ẩn / Hiện bảng điều khiển bên trái (Ctrl+B)" aria-label="Ẩn hoặc hiện bảng điều khiển" aria-expanded="true">
           <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
             <rect x="3" y="4" width="18" height="16" rx="2"></rect>
             <line x1="9" y1="4" x2="9" y2="20"></line>
@@ -45,7 +65,7 @@
         </div>
 
         <div class="toolbar-group" role="group" aria-label="Chế độ xem thử lưới nhiều máy">
-          <label class="toolbar-label" for="selectDemoCount">Demo lưới</label>
+          <label class="toolbar-label" for="selectDemoCount">Demo</label>
           <select id="selectDemoCount" class="compact-select" aria-label="Chọn số máy Demo">
             <option value="0">Tắt</option>
             <option value="2">2 máy</option>
@@ -57,22 +77,35 @@
       </div>
 
       <div class="topbar-right">
-        <button type="button" class="btn-ghost" id="btnTopScreenOff" disabled title="Tắt màn hình vật lý điện thoại (vẫn điều khiển bình thường)">
+        <button type="button" class="btn-ghost" id="btnAlwaysOnTop" aria-pressed="false" title="Ghim cửa sổ luôn nổi trên mọi ứng dụng khác">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 17v5"></path>
+            <path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z"></path>
+          </svg>
+          <span>Luôn nổi</span>
+        </button>
+        <button type="button" class="btn-ghost" id="btnTopScreenOff" disabled aria-pressed="false" title="Bấm để tắt màn hình vật lý điện thoại (vẫn điều khiển được); bấm lại để bật sáng">
           <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
             <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"></path>
             <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"></path>
             <line x1="1" y1="1" x2="23" y2="23"></line>
           </svg>
-          <span>Tắt màn ĐT</span>
+          <span id="topScreenOffLabel">Tắt màn ĐT</span>
         </button>
-        <button type="button" class="btn-ghost" id="btnTopScreenshot" disabled title="Chụp ảnh màn hình và sao chép Clipboard">
+        <button type="button" class="btn-ghost" id="btnOpenDiagDrawer" disabled title="Kiểm tra pin, nhiệt độ, RAM, cảm ứng lỗi, Wi-Fi &amp; ứng dụng văng">
           <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
-            <circle cx="12" cy="13" r="3.5"></circle>
+            <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
           </svg>
-          <span>Chụp ảnh</span>
+          <span>Chẩn đoán</span>
         </button>
-        <button type="button" class="btn-outline" id="btnOpenAddDrawer" title="Thêm điện thoại qua Wi-Fi hoặc xem hướng dẫn USB">
+        <button type="button" class="btn-ghost" id="btnPhoneOnly" title="Ẩn toàn bộ thanh công cụ, chỉ hiện màn hình điện thoại (Ctrl+Shift+H)">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="6" y="2.5" width="12" height="19" rx="2.5"></rect>
+            <line x1="10.5" y1="18" x2="13.5" y2="18"></line>
+          </svg>
+          <span>Chỉ hiện ĐT</span>
+        </button>
+        <button type="button" class="btn-outline" id="btnOpenAddDrawer" title="Thêm điện thoại qua Wi-Fi hoặc hướng dẫn USB">
           <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
             <line x1="12" y1="5" x2="12" y2="19"></line>
             <line x1="5" y1="12" x2="19" y2="12"></line>
@@ -124,10 +157,10 @@
             </div>
           </section>
 
-          <!-- 2. Mirror & Physical Display Power -->
+          <!-- 2. Mirror & Unified Display Toggle -->
           <section class="panel-section" aria-labelledby="displayHeading">
             <div class="section-head">
-              <h2 class="section-title" id="displayHeading">Màn hình &amp; Hiển thị</h2>
+              <h2 class="section-title" id="displayHeading">Màn hình &amp; Hiển thị</h2>
               <span class="device-pill" id="selectedDeviceBadge">Chưa chọn máy</span>
             </div>
 
@@ -149,28 +182,28 @@
               </button>
             </div>
 
-            <!-- Live screen power off/on + white touch dot -->
+            <!-- Unified Toggle buttons with clear active lit state -->
             <div class="btn-row-3">
-              <button type="button" class="ctrl-btn" id="btnScreenOffLive" disabled title="Tắt sáng màn hình vật lý ngay lúc này (vẫn điều khiển trên PC bình thường)">
+              <button type="button" class="ctrl-btn" id="btnToggleScreenOff" disabled aria-pressed="false" title="Bấm để tắt màn hình vật lý (vẫn điều khiển được); bấm lần nữa để bật sáng lại">
                 <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
                   <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"></path>
                   <line x1="1" y1="1" x2="23" y2="23"></line>
                 </svg>
-                <span>Tắt màn ĐT</span>
+                <span id="sidebarScreenOffLabel">Tắt màn ĐT</span>
               </button>
-              <button type="button" class="ctrl-btn" id="btnScreenOnLive" disabled title="Bật sáng lại màn hình điện thoại">
-                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
-                  <circle cx="12" cy="12" r="3"></circle>
-                </svg>
-                <span>Bật sáng ĐT</span>
-              </button>
-              <button type="button" class="ctrl-btn" id="btnToggleTouchDot" disabled aria-pressed="false" title="Hiện chấm tròn trắng khi chạm/kéo trên màn hình điện thoại (không tốn RAM)">
+              <button type="button" class="ctrl-btn" id="btnToggleTouchDot" disabled aria-pressed="false" title="Hiện chấm tròn trắng khi chạm/kéo trên màn hình điện thoại">
                 <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
                   <circle cx="12" cy="12" r="3.5" fill="currentColor"></circle>
                   <circle cx="12" cy="12" r="8.5"></circle>
                 </svg>
                 <span>Chấm chạm</span>
+              </button>
+              <button type="button" class="ctrl-btn" id="btnSideAlwaysOnTop" aria-pressed="false" title="Ghim cửa sổ luôn nổi trên mọi ứng dụng">
+                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M12 17v5"></path>
+                  <path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z"></path>
+                </svg>
+                <span>Luôn nổi</span>
               </button>
             </div>
 
@@ -247,7 +280,6 @@
               <div class="swipe-spacer"></div>
             </div>
 
-            <!-- 4-key Navigation bar including All Apps Drawer -->
             <div class="btn-row-4">
               <button type="button" class="ctrl-btn" data-action="back" disabled title="Quay lại (Back)">
                 <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
@@ -289,10 +321,12 @@
           <section class="panel-section" aria-labelledby="quickAppsHeading">
             <div class="section-head">
               <h2 class="section-title" id="quickAppsHeading">Ứng dụng &amp; Phím cứng</h2>
-              <button type="button" class="text-btn" id="btnOpenAppsDrawer" disabled title="Tìm và mở bất kỳ ứng dụng nào đã cài trên điện thoại">Danh sách app</button>
+              <div class="section-actions">
+                <button type="button" class="text-btn" id="btnOpenAppsDrawer" disabled title="Mở lưới ứng dụng có icon như trên điện thoại">Lưới app</button>
+                <button type="button" class="text-btn" id="btnSideDiagDrawer" disabled title="Chẩn đoán pin, cảm ứng &amp; lỗi ứng dụng">Chẩn đoán</button>
+              </div>
             </div>
 
-            <!-- 4 Quick App Launchers -->
             <div class="btn-row-4">
               <button type="button" class="ctrl-btn" data-app="phone" disabled title="Mở ứng dụng Điện thoại / Gọi">
                 <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
@@ -323,7 +357,6 @@
               </button>
             </div>
 
-            <!-- Hardware keys row 1 -->
             <div class="btn-row-4">
               <button type="button" class="ctrl-btn" data-action="vol_down" disabled title="Giảm âm lượng">
                 <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
@@ -357,7 +390,6 @@
               </button>
             </div>
 
-            <!-- Hardware keys row 2 -->
             <div class="btn-row-4">
               <button type="button" class="ctrl-btn" data-action="notifications" disabled title="Kéo thanh thông báo">
                 <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
@@ -366,13 +398,13 @@
                 </svg>
                 <span>Thông báo</span>
               </button>
-              <button type="button" class="ctrl-btn" data-action="rotate" disabled title="Xoay ngang / dọc màn hình">
+              <button type="button" class="ctrl-btn" id="btnRotate" data-action="rotate" disabled aria-pressed="false" title="Xoay ngang / dọc màn hình (khung PC tự xoay theo)">
                 <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
                   <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
                   <path d="M3 3v5h5"></path>
                   <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"></path>
                 </svg>
-                <span>Xoay</span>
+                <span>Xoay ngang</span>
               </button>
               <button type="button" class="ctrl-btn" id="btnSendFile" disabled title="Gửi tệp sang Download hoặc cài đặt APK">
                 <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
@@ -392,7 +424,7 @@
           </section>
         </div>
 
-        <!-- Inline Sidebar Drawer: Add Device (never covered by scrcpy overlay) -->
+        <!-- Inline Sidebar Drawer: Add Device -->
         <div class="sidebar-drawer hidden" id="drawerAddDevice" aria-label="Thêm điện thoại mới">
           <div class="drawer-head">
             <button type="button" class="icon-btn mini" data-close-drawer aria-label="Quay lại">
@@ -446,8 +478,8 @@
           </div>
         </div>
 
-        <!-- Inline Sidebar Drawer: All Installed Apps Launcher -->
-        <div class="sidebar-drawer hidden" id="drawerApps" aria-label="Danh sách ứng dụng trên điện thoại">
+        <!-- Inline Sidebar Drawer: Phone-Style Icon Grid App Launcher -->
+        <div class="sidebar-drawer hidden" id="drawerApps" aria-label="Lưới ứng dụng trên điện thoại">
           <div class="drawer-head">
             <button type="button" class="icon-btn mini" data-close-drawer aria-label="Quay lại">
               <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
@@ -463,10 +495,35 @@
             </button>
           </div>
           <label class="field">
-            <input type="search" id="inputSearchApps" placeholder="Tìm tên ứng dụng (VD: Zalo, Chrome...)" />
+            <input type="search" id="inputSearchApps" placeholder="Tìm ứng dụng (Zalo, Chrome...)" />
           </label>
-          <div class="app-picker-list" id="appPickerList">
-            <div class="empty-inline">Chọn máy đang kết nối để tải danh sách ứng dụng.</div>
+          <div class="seg-control seg-2" role="tablist" aria-label="Lọc ứng dụng">
+            <button type="button" class="seg-btn active" data-app-filter="all">Tất cả</button>
+            <button type="button" class="seg-btn" data-app-filter="user">App cài thêm</button>
+          </div>
+          <div class="app-grid-wrap" id="appPickerList">
+            <div class="empty-inline">Chọn máy đang kết nối để tải lưới ứng dụng.</div>
+          </div>
+        </div>
+
+        <!-- Inline Sidebar Drawer: Device Health & Diagnostics -->
+        <div class="sidebar-drawer hidden" id="drawerDiagnostics" aria-label="Chẩn đoán thiết bị">
+          <div class="drawer-head">
+            <button type="button" class="icon-btn mini" data-close-drawer aria-label="Quay lại">
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="15 18 9 12 15 6"></polyline>
+              </svg>
+            </button>
+            <h3>Chẩn đoán &amp; Pin</h3>
+            <button type="button" class="icon-btn mini" id="btnReloadDiag" title="Đo lại thông số phần cứng" aria-label="Đo lại">
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 12a9 9 0 1 1-2.64-6.36"></path>
+                <polyline points="21 3 21 9 15 9"></polyline>
+              </svg>
+            </button>
+          </div>
+          <div class="drawer-body" id="diagBody">
+            <div class="empty-inline">Đang đọc dữ liệu pin, cảm ứng và ứng dụng lỗi...</div>
           </div>
         </div>
 
@@ -503,7 +560,7 @@
             </svg>
           </div>
           <h2 class="stage-empty-title">Khung điều khiển đa màn hình</h2>
-          <p class="stage-empty-desc">Bấm <strong>Mở màn hình</strong> bên trái để nhúng khung điện thoại vào đây, hoặc bật thử <strong>Demo lưới</strong> để xem cách tự sắp xếp nhiều máy theo các mức Zoom.</p>
+          <p class="stage-empty-desc">Bấm <strong>Mở màn hình</strong> bên trái để nhúng khung điện thoại vào đây, hoặc bật thử <strong>Demo</strong> để xem cách tự sắp xếp nhiều máy theo các mức Zoom.</p>
           <div class="stage-empty-actions">
             <button type="button" class="btn-primary" id="btnEmptyStartMirror" disabled>Mở máy đang chọn</button>
             <button type="button" class="btn-outline" id="btnEmptyDemo4">Xem thử Demo 4 máy</button>

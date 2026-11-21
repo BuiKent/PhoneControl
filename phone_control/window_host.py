@@ -29,12 +29,22 @@ WS_EX_APPWINDOW = 0x00040000
 SW_HIDE = 0
 SW_SHOWNA = 8
 
+HWND_TOPMOST = -1
+HWND_NOTOPMOST = -2
+
 SWP_NOSIZE = 0x0001
 SWP_NOMOVE = 0x0002
 SWP_NOZORDER = 0x0004
 SWP_NOACTIVATE = 0x0010
 SWP_FRAMECHANGED = 0x0020
 SWP_SHOWWINDOW = 0x0040
+
+# Win32 SendInput constants for sending Alt+O / Alt+Shift+O directly to scrcpy
+INPUT_KEYBOARD = 1
+KEYEVENTF_KEYUP = 0x0002
+VK_LMENU = 0xA4
+VK_LSHIFT = 0xA0
+VK_O = 0x4F
 
 
 if IS_WINDOWS:
@@ -43,6 +53,7 @@ if IS_WINDOWS:
 
     _IS_64 = ctypes.sizeof(ctypes.c_void_p) == 8
     _LONG_PTR = ctypes.c_longlong if _IS_64 else ctypes.c_long
+    _ULONG_PTR = ctypes.c_ulonglong if _IS_64 else ctypes.c_ulong
 
     if _IS_64:
         _get_window_long_ptr = _user32.GetWindowLongPtrW
@@ -55,6 +66,31 @@ if IS_WINDOWS:
     _get_window_long_ptr.restype = _LONG_PTR
     _set_window_long_ptr.argtypes = [wintypes.HWND, ctypes.c_int, _LONG_PTR]
     _set_window_long_ptr.restype = _LONG_PTR
+
+    class _KEYBDINPUT(ctypes.Structure):
+        _fields_ = [
+            ("wVk", wintypes.WORD),
+            ("wScan", wintypes.WORD),
+            ("dwFlags", wintypes.DWORD),
+            ("time", wintypes.DWORD),
+            ("dwExtraInfo", _ULONG_PTR),
+        ]
+
+    class _MOUSEINPUT(ctypes.Structure):
+        _fields_ = [
+            ("dx", wintypes.LONG),
+            ("dy", wintypes.LONG),
+            ("mouseData", wintypes.DWORD),
+            ("dwFlags", wintypes.DWORD),
+            ("time", wintypes.DWORD),
+            ("dwExtraInfo", _ULONG_PTR),
+        ]
+
+    class _INPUT_UNION(ctypes.Union):
+        _fields_ = [("ki", _KEYBDINPUT), ("mi", _MOUSEINPUT)]
+
+    class _INPUT(ctypes.Structure):
+        _fields_ = [("type", wintypes.DWORD), ("union", _INPUT_UNION)]
 
     _user32.ClientToScreen.argtypes = [wintypes.HWND, ctypes.POINTER(wintypes.POINT)]
     _user32.ClientToScreen.restype = wintypes.BOOL
@@ -95,6 +131,12 @@ if IS_WINDOWS:
     _user32.GetWindowTextLengthW.restype = ctypes.c_int
     _user32.EnumWindows.argtypes = [_ENUM_PROC, wintypes.LPARAM]
     _user32.EnumWindows.restype = wintypes.BOOL
+    _user32.GetForegroundWindow.argtypes = []
+    _user32.GetForegroundWindow.restype = wintypes.HWND
+    _user32.SetForegroundWindow.argtypes = [wintypes.HWND]
+    _user32.SetForegroundWindow.restype = wintypes.BOOL
+    _user32.SendInput.argtypes = [ctypes.c_uint, ctypes.POINTER(_INPUT), ctypes.c_int]
+    _user32.SendInput.restype = ctypes.c_uint
 
 
 def find_window_by_pid(pid: int, *, timeout: float = 5.0, title_contains: str = "") -> int | None:
@@ -106,7 +148,7 @@ def find_window_by_pid(pid: int, *, timeout: float = 5.0, title_contains: str = 
         found: list[int] = []
 
         def _cb(hwnd: int, _lparam: int) -> bool:
-            if not _user32.IsWindowVisible(hwnd):
+            if not hwnd or not _user32.IsWindowVisible(hwnd):
                 return True
             win_pid = wintypes.DWORD(0)
             _user32.GetWindowThreadProcessId(hwnd, ctypes.byref(win_pid))
@@ -135,6 +177,25 @@ def find_window_by_title(title: str) -> int | None:
     return int(raw) if raw else None
 
 
+def _send_key_combo(vk_codes: list[int]) -> None:
+    """Send a chord of virtual keys down then up via Win32 SendInput."""
+    if not IS_WINDOWS:
+        return
+    events: list[_INPUT] = []
+    for vk in vk_codes:
+        inp = _INPUT()
+        inp.type = INPUT_KEYBOARD
+        inp.union.ki = _KEYBDINPUT(wVk=vk, wScan=0, dwFlags=0, time=0, dwExtraInfo=0)
+        events.append(inp)
+    for vk in reversed(vk_codes):
+        inp = _INPUT()
+        inp.type = INPUT_KEYBOARD
+        inp.union.ki = _KEYBDINPUT(wVk=vk, wScan=0, dwFlags=KEYEVENTF_KEYUP, time=0, dwExtraInfo=0)
+        events.append(inp)
+    arr = (_INPUT * len(events))(*events)
+    _user32.SendInput(len(events), arr, ctypes.sizeof(_INPUT))
+
+
 class Win32WindowHost:
     """Keeps borderless scrcpy windows docked inside the right workspace pane."""
 
@@ -143,8 +204,9 @@ class Win32WindowHost:
         self._owner_hwnd: int | None = None
         self._owner_title: str = ""
         self._children: dict[str, int] = {}  # serial -> hwnd
-        self._slots: dict[str, dict[str, Any]] = {}  # serial -> {x, y, width, height, visible}
+        self._slots: dict[str, dict[str, Any]] = {}
         self._overlay_visible: bool = True
+        self._always_on_top: bool = False
         self._last_origin: tuple[int, int] | None = None
         self._last_iconic: bool | None = None
         self._stop_event = threading.Event()
@@ -163,6 +225,44 @@ class Win32WindowHost:
         if self._owner_title:
             self._owner_hwnd = find_window_by_title(self._owner_title)
         return self._owner_hwnd
+
+    def set_always_on_top(self, enabled: bool) -> bool:
+        """Toggle HWND_TOPMOST on the main PhoneControl window (owned scrcpy windows follow)."""
+        with self._lock:
+            self._always_on_top = bool(enabled)
+            if not IS_WINDOWS:
+                return self._always_on_top
+            owner = self._resolve_owner_locked()
+            if owner:
+                insert_after = HWND_TOPMOST if self._always_on_top else HWND_NOTOPMOST
+                _user32.SetWindowPos(
+                    owner,
+                    insert_after,
+                    0,
+                    0,
+                    0,
+                    0,
+                    SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE,
+                )
+            return self._always_on_top
+
+    def send_display_power_shortcut(self, serial: str, *, on: bool) -> bool:
+        """Send native scrcpy Alt+O (off) or Alt+Shift+O (on) directly to the docked window."""
+        if not IS_WINDOWS:
+            return False
+        with self._lock:
+            hwnd = self._children.get(serial)
+            if not hwnd or not _user32.IsWindow(hwnd):
+                return False
+            prev_fg = _user32.GetForegroundWindow()
+            _user32.SetForegroundWindow(hwnd)
+            time.sleep(0.04)
+            combo = [VK_LMENU, VK_LSHIFT, VK_O] if on else [VK_LMENU, VK_O]
+            _send_key_combo(combo)
+            time.sleep(0.04)
+            if prev_fg and _user32.IsWindow(prev_fg) and int(prev_fg) != int(hwnd):
+                _user32.SetForegroundWindow(prev_fg)
+            return True
 
     def start_tracking(self) -> None:
         if not IS_WINDOWS:
@@ -221,6 +321,16 @@ class Win32WindowHost:
         """Update relative client coordinates (physical px) for active mirror slots."""
         with self._lock:
             self._resolve_owner_locked()
+            if self._always_on_top and self._owner_hwnd:
+                _user32.SetWindowPos(
+                    self._owner_hwnd,
+                    HWND_TOPMOST,
+                    0,
+                    0,
+                    0,
+                    0,
+                    SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE,
+                )
             active_serials: set[str] = set()
             for item in slots:
                 serial = str(item.get("serial", ""))
@@ -235,7 +345,6 @@ class Win32WindowHost:
                     "visible": bool(item.get("visible", True)),
                 }
 
-            # Hide any registered mirror that currently has no visible slot
             for serial in list(self._children.keys()):
                 if serial not in active_serials:
                     self._slots[serial] = {"x": 0, "y": 0, "width": 1, "height": 1, "visible": False}
@@ -259,7 +368,6 @@ class Win32WindowHost:
         if not IS_WINDOWS:
             return
         try:
-            # Set owner so Z-order tracks PhoneControl without stealing global always-on-top
             _set_window_long_ptr(child_hwnd, GWLP_HWNDPARENT, owner_hwnd)
 
             style = int(_get_window_long_ptr(child_hwnd, GWL_STYLE))

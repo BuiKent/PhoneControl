@@ -9,6 +9,7 @@ from typing import Any
 
 from .adb_service import AdbScrcpyService
 from .device_store import DeviceStore
+from .icon_cache import AppIconCache
 from .window_host import Win32WindowHost
 
 
@@ -28,10 +29,12 @@ class PhoneControlAPI:
         service: AdbScrcpyService | None = None,
         store: DeviceStore | None = None,
         window_host: Win32WindowHost | None = None,
+        icon_cache: AppIconCache | None = None,
     ) -> None:
         self.service = service or AdbScrcpyService()
         self.store = store or DeviceStore()
         self.window_host = window_host or Win32WindowHost()
+        self.icon_cache = icon_cache or AppIconCache()
         self._window: Any = None
         self._seen_online_ids: set[str] = set()
         self._is_fullscreen: bool = False
@@ -47,11 +50,14 @@ class PhoneControlAPI:
 
     def get_initial_state(self) -> dict[str, Any]:
         try:
+            settings = self.store.get_settings()
+            if settings.get("always_on_top"):
+                self.window_host.set_always_on_top(True)
             devices_res = self.scan_devices(trigger_auto_mirror=False)
             return _ok(
                 {
                     "tools": self.service.get_tool_status(),
-                    "settings": self.store.get_settings(),
+                    "settings": settings,
                     "devices": devices_res["data"]["devices"] if devices_res["ok"] else [],
                 }
             )
@@ -59,7 +65,6 @@ class PhoneControlAPI:
             return _err(exc)
 
     def scan_devices(self, trigger_auto_mirror: bool = True) -> dict[str, Any]:
-        """Combine live ADB devices with persisted device profiles and handle auto-mirror."""
         try:
             live_devices = self.service.list_devices(fetch_details=True)
             saved_map = self.store.get_saved_devices()
@@ -85,8 +90,8 @@ class PhoneControlAPI:
                         android_version=dev.get("android_version", ""),
                         wifi_ip=dev.get("wifi_ip", ""),
                         transport=dev.get("transport", "usb"),
-                        screen_width=int(dev.get("screen_width") or 0),
-                        screen_height=int(dev.get("screen_height") or 0),
+                        screen_width=int(dev.get("raw_width") or dev.get("screen_width") or 0),
+                        screen_height=int(dev.get("raw_height") or dev.get("screen_height") or 0),
                     )
                     current_online_ids.add(hw_id)
 
@@ -123,7 +128,10 @@ class PhoneControlAPI:
                         "battery": dev.get("battery"),
                         "screen_width": int(dev.get("screen_width") or (saved.get("screen_width", 0) if saved else 0) or 1080),
                         "screen_height": int(dev.get("screen_height") or (saved.get("screen_height", 0) if saved else 0) or 2340),
+                        "orientation": int(dev.get("orientation", 0)),
                         "show_touches": bool(dev.get("show_touches", False)),
+                        "pointer_location": bool(dev.get("pointer_location", False)),
+                        "screen_off": bool(dev.get("screen_off", False)),
                         "wifi_ip": dev.get("wifi_ip") or (saved.get("wifi_ip", "") if saved else ""),
                         "mirroring": bool(dev.get("mirroring", False)),
                         "saved": saved is not None,
@@ -153,7 +161,10 @@ class PhoneControlAPI:
                         "battery": None,
                         "screen_width": int(saved.get("screen_width", 0) or 1080),
                         "screen_height": int(saved.get("screen_height", 0) or 2340),
+                        "orientation": 0,
                         "show_touches": False,
+                        "pointer_location": False,
+                        "screen_off": False,
                         "wifi_ip": saved.get("wifi_ip", ""),
                         "mirroring": False,
                         "saved": True,
@@ -216,7 +227,6 @@ class PhoneControlAPI:
                 initial_rect=initial_rect,
             )
             if embedded and res.get("pid"):
-                # Dock asynchronously so UI stays responsive while scrcpy creates its SDL window
                 threading.Thread(
                     target=self.window_host.register_mirror,
                     args=(serial, int(res["pid"]), title_token),
@@ -257,6 +267,15 @@ class PhoneControlAPI:
         except Exception as exc:
             return _err(exc)
 
+    def set_always_on_top(self, enabled: bool) -> dict[str, Any]:
+        try:
+            val = bool(enabled)
+            self.window_host.set_always_on_top(val)
+            updated = self.store.update_settings({"always_on_top": val})
+            return _ok({"always_on_top": val, "settings": updated})
+        except Exception as exc:
+            return _err(exc)
+
     def toggle_fullscreen(self) -> dict[str, Any]:
         try:
             if self._window and hasattr(self._window, "toggle_fullscreen"):
@@ -267,8 +286,17 @@ class PhoneControlAPI:
             return _err(exc)
 
     def set_display_power(self, serial: str, on: bool) -> dict[str, Any]:
+        """Toggle physical display backlight cleanly, preferring native scrcpy Alt+O / Alt+Shift+O."""
         try:
-            res = self.service.set_display_power(serial, on=bool(on))
+            want_on = bool(on)
+            # If the device has a docked scrcpy window, send native Alt+O / Alt+Shift+O directly
+            # so turning the backlight OFF or back ON works instantaneously & reliably.
+            if self.window_host.has_window(serial):
+                sent = self.window_host.send_display_power_shortcut(serial, on=want_on)
+                if sent:
+                    self.service.mark_screen_off_state(serial, not want_on)
+                    return _ok({"serial": serial, "screen_on": want_on, "screen_off": not want_on, "via": "scrcpy_shortcut"})
+            res = self.service.set_display_power(serial, on=want_on)
             return _ok(res)
         except Exception as exc:
             return _err(exc)
@@ -276,6 +304,13 @@ class PhoneControlAPI:
     def set_show_touches(self, serial: str, enabled: bool) -> dict[str, Any]:
         try:
             res = self.service.set_show_touches(serial, bool(enabled))
+            return _ok(res)
+        except Exception as exc:
+            return _err(exc)
+
+    def set_pointer_location(self, serial: str, enabled: bool) -> dict[str, Any]:
+        try:
+            res = self.service.set_pointer_location(serial, bool(enabled))
             return _ok(res)
         except Exception as exc:
             return _err(exc)
@@ -312,13 +347,61 @@ class PhoneControlAPI:
     def list_apps(self, serial: str, force_refresh: bool = False) -> dict[str, Any]:
         try:
             apps = self.service.list_installed_apps(serial, force_refresh=bool(force_refresh))
-            return _ok({"apps": apps})
+            # Attach any already-cached icons immediately without blocking on network
+            enriched = []
+            for app in apps:
+                cached_icon = self.icon_cache.get_cached(app["package"])
+                enriched.append({**app, "icon": cached_icon or ""})
+            return _ok({"apps": enriched})
+        except Exception as exc:
+            return _err(exc)
+
+    def fetch_app_icons(self, packages: list[str]) -> dict[str, Any]:
+        try:
+            safe_pkgs = [str(p).strip() for p in (packages or [])[:60] if p]
+            icons = self.icon_cache.resolve_batch(safe_pkgs, allow_network=True, max_workers=8)
+            return _ok({"icons": icons})
         except Exception as exc:
             return _err(exc)
 
     def launch_package(self, serial: str, package_name: str) -> dict[str, Any]:
         try:
             res = self.service.launch_package(serial, package_name)
+            return _ok(res)
+        except Exception as exc:
+            return _err(exc)
+
+    def force_stop_package(self, serial: str, package_name: str) -> dict[str, Any]:
+        try:
+            res = self.service.force_stop_package(serial, package_name)
+            return _ok(res)
+        except Exception as exc:
+            return _err(exc)
+
+    def get_diagnostics(self, serial: str) -> dict[str, Any]:
+        try:
+            res = self.service.get_diagnostics(serial)
+            return _ok(res)
+        except Exception as exc:
+            return _err(exc)
+
+    def set_battery_saver(self, serial: str, enabled: bool) -> dict[str, Any]:
+        try:
+            res = self.service.set_battery_saver(serial, bool(enabled))
+            return _ok(res)
+        except Exception as exc:
+            return _err(exc)
+
+    def clear_background_processes(self, serial: str) -> dict[str, Any]:
+        try:
+            res = self.service.clear_background_processes(serial)
+            return _ok(res)
+        except Exception as exc:
+            return _err(exc)
+
+    def launch_samsung_hw_test(self, serial: str) -> dict[str, Any]:
+        try:
+            res = self.service.launch_samsung_hw_test(serial)
             return _ok(res)
         except Exception as exc:
             return _err(exc)
@@ -368,6 +451,8 @@ class PhoneControlAPI:
     def update_settings(self, patch: dict[str, Any]) -> dict[str, Any]:
         try:
             updated = self.store.update_settings(patch)
+            if "always_on_top" in patch:
+                self.window_host.set_always_on_top(bool(updated.get("always_on_top")))
             return _ok(updated)
         except Exception as exc:
             return _err(exc)

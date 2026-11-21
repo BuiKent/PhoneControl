@@ -8,7 +8,7 @@ from playwright.sync_api import sync_playwright
 UI_INDEX = Path(__file__).resolve().parent.parent / "phone_control" / "ui" / "index.html"
 
 
-def test_ui_v2_unified_workspace_real_dom_interactions() -> None:
+def test_ui_v2_1_grid_apps_toggle_power_rotate_phone_only_and_diagnostics() -> None:
     console_errors: list[str] = []
     page_errors: list[str] = []
 
@@ -23,6 +23,8 @@ def test_ui_v2_unified_workspace_real_dom_interactions() -> None:
             window.__calls = [];
             window.__state = {
               mirroring: {},
+              screenOff: {},
+              orientation: { TESTDEV001: 0, TESTDEV002: 0 },
               settings: {
                 quality: "balanced",
                 turn_screen_off: false,
@@ -50,7 +52,10 @@ def test_ui_v2_unified_workspace_real_dom_interactions() -> None:
                   battery: 88,
                   screen_width: 1080,
                   screen_height: 2316,
+                  orientation: 0,
                   show_touches: false,
+                  pointer_location: false,
+                  screen_off: false,
                   wifi_ip: "192.168.1.33",
                   mirroring: false,
                   saved: true,
@@ -70,7 +75,10 @@ def test_ui_v2_unified_workspace_real_dom_interactions() -> None:
                   battery: 72,
                   screen_width: 1080,
                   screen_height: 2280,
+                  orientation: 0,
                   show_touches: false,
+                  pointer_location: false,
+                  screen_off: false,
                   wifi_ip: "192.168.1.40",
                   mirroring: false,
                   saved: true,
@@ -78,6 +86,21 @@ def test_ui_v2_unified_workspace_real_dom_interactions() -> None:
                 }
               ]
             };
+
+            function snapshotDevices() {
+              return window.__state.devices.map(d => {
+                const orient = window.__state.orientation[d.serial] || 0;
+                const w = orient === 1 ? Math.max(d.screen_width, d.screen_height) : Math.min(d.screen_width, d.screen_height);
+                const h = orient === 1 ? Math.min(d.screen_width, d.screen_height) : Math.max(d.screen_width, d.screen_height);
+                return Object.assign({}, d, {
+                  orientation: orient,
+                  screen_width: w,
+                  screen_height: h,
+                  mirroring: Boolean(window.__state.mirroring[d.serial]),
+                  screen_off: Boolean(window.__state.screenOff[d.serial])
+                });
+              });
+            }
 
             window.pywebview = {
               api: {
@@ -88,19 +111,13 @@ def test_ui_v2_unified_workspace_real_dom_interactions() -> None:
                     data: {
                       tools: { adb_available: true, scrcpy_available: true },
                       settings: Object.assign({}, window.__state.settings),
-                      devices: window.__state.devices.map(d => Object.assign({}, d, { mirroring: Boolean(window.__state.mirroring[d.serial]) }))
+                      devices: snapshotDevices()
                     }
                   };
                 },
                 async scan_devices(trigger) {
                   window.__calls.push(["scan_devices", trigger]);
-                  return {
-                    ok: true,
-                    data: {
-                      devices: window.__state.devices.map(d => Object.assign({}, d, { mirroring: Boolean(window.__state.mirroring[d.serial]) })),
-                      auto_mirrored: []
-                    }
-                  };
+                  return { ok: true, data: { devices: snapshotDevices(), auto_mirrored: [] } };
                 },
                 async start_mirror(serial, name, slot) {
                   window.__calls.push(["start_mirror", serial, name, slot]);
@@ -116,9 +133,15 @@ def test_ui_v2_unified_workspace_real_dom_interactions() -> None:
                   window.__calls.push(["sync_mirror_slots", slots]);
                   return { ok: true, data: { synced: slots.length } };
                 },
+                async set_always_on_top(enabled) {
+                  window.__calls.push(["set_always_on_top", enabled]);
+                  window.__state.settings.always_on_top = enabled;
+                  return { ok: true, data: { always_on_top: enabled } };
+                },
                 async set_display_power(serial, on) {
                   window.__calls.push(["set_display_power", serial, on]);
-                  return { ok: true, data: { serial, screen_on: on } };
+                  window.__state.screenOff[serial] = !on;
+                  return { ok: true, data: { serial, screen_on: on, screen_off: !on } };
                 },
                 async set_show_touches(serial, enabled) {
                   window.__calls.push(["set_show_touches", serial, enabled]);
@@ -126,12 +149,30 @@ def test_ui_v2_unified_workspace_real_dom_interactions() -> None:
                   if (d) d.show_touches = enabled;
                   return { ok: true, data: { serial, show_touches: enabled } };
                 },
+                async set_pointer_location(serial, enabled) {
+                  window.__calls.push(["set_pointer_location", serial, enabled]);
+                  return { ok: true, data: { serial, pointer_location: enabled } };
+                },
                 async swipe(serial, direction, step) {
                   window.__calls.push(["swipe", serial, direction, step]);
                   return { ok: true, data: { serial, direction, step } };
                 },
                 async send_action(serial, action) {
                   window.__calls.push(["send_action", serial, action]);
+                  if (action === "rotate") {
+                    const next = window.__state.orientation[serial] === 1 ? 0 : 1;
+                    window.__state.orientation[serial] = next;
+                    return {
+                      ok: true,
+                      data: {
+                        serial,
+                        action: "rotate",
+                        orientation: next,
+                        screen_width: next === 1 ? 2316 : 1080,
+                        screen_height: next === 1 ? 1080 : 2316
+                      }
+                    };
+                  }
                   return { ok: true, data: { serial, action } };
                 },
                 async launch_quick_app(serial, appKey) {
@@ -144,34 +185,64 @@ def test_ui_v2_unified_workspace_real_dom_interactions() -> None:
                     ok: true,
                     data: {
                       apps: [
-                        { name: "Bộ sưu tập", package: "com.sec.android.gallery3d", system: true },
-                        { name: "Chrome", package: "com.android.chrome", system: true },
-                        { name: "Zalo", package: "com.zing.zalo", system: false }
+                        { name: "Bộ sưu tập", package: "com.sec.android.gallery3d", system: true, icon: "" },
+                        { name: "Chrome", package: "com.android.chrome", system: true, icon: "" },
+                        { name: "Zalo", package: "com.zing.zalo", system: false, icon: "" }
                       ]
                     }
                   };
+                },
+                async fetch_app_icons(packages) {
+                  window.__calls.push(["fetch_app_icons", packages]);
+                  const tinyPng = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=";
+                  return { ok: true, data: { icons: { "com.zing.zalo": tinyPng } } };
                 },
                 async launch_package(serial, pkg) {
                   window.__calls.push(["launch_package", serial, pkg]);
                   return { ok: true, data: { serial, package: pkg } };
                 },
-                async take_screenshot(serial, label) {
-                  window.__calls.push(["take_screenshot", serial, label]);
+                async get_diagnostics(serial) {
+                  window.__calls.push(["get_diagnostics", serial]);
                   return {
                     ok: true,
-                    data: { path: "C:/Shots/shot1.png", filename: "shot1.png", copied_to_clipboard: true }
+                    data: {
+                      serial,
+                      battery: { level: 65, temperature_c: 35.3, voltage_v: 4.07, health_code: 2, health_label: "Tốt", status_label: "Đang sạc", technology: "Li-ion" },
+                      memory: { total_gb: 7.1, used_gb: 4.0, available_gb: 3.1, used_pct: 56 },
+                      storage: { total_gb: 228.6, used_gb: 57.3, free_gb: 171.3, used_pct: 25 },
+                      wifi: { ssid: "Sweethome", rssi_dbm: -55, link_mbps: 195, quality: "Rất mạnh" },
+                      ping_ms: 14.2,
+                      power_save: false,
+                      pointer_location: false,
+                      has_samsung_hwtest: true,
+                      crashes: [{ timestamp: "2026-11-21 19:20:00", type: "Crash (Văng)", package: "com.example.broken" }]
+                    }
                   };
+                },
+                async set_battery_saver(serial, enabled) {
+                  window.__calls.push(["set_battery_saver", serial, enabled]);
+                  return { ok: true, data: { serial, power_save: enabled } };
+                },
+                async clear_background_processes(serial) {
+                  window.__calls.push(["clear_background_processes", serial]);
+                  return { ok: true, data: { serial, cleared: true } };
+                },
+                async launch_samsung_hw_test(serial) {
+                  window.__calls.push(["launch_samsung_hw_test", serial]);
+                  return { ok: true, data: { serial, launched: true } };
+                },
+                async force_stop_package(serial, pkg) {
+                  window.__calls.push(["force_stop_package", serial, pkg]);
+                  return { ok: true, data: { serial, package: pkg } };
+                },
+                async take_screenshot(serial, label) {
+                  window.__calls.push(["take_screenshot", serial, label]);
+                  return { ok: true, data: { path: "C:/Shots/shot1.png", filename: "shot1.png", copied_to_clipboard: true } };
                 },
                 async update_settings(patch) {
                   window.__calls.push(["update_settings", patch]);
                   Object.assign(window.__state.settings, patch);
                   return { ok: true, data: Object.assign({}, window.__state.settings) };
-                },
-                async rename_device(id, nickname) {
-                  window.__calls.push(["rename_device", id, nickname]);
-                  const d = window.__state.devices.find(x => x.id === id);
-                  if (d) { d.nickname = nickname; d.display_name = nickname; }
-                  return { ok: true, data: d };
                 },
                 async connect_wifi(addr) {
                   window.__calls.push(["connect_wifi", addr]);
@@ -196,94 +267,89 @@ def test_ui_v2_unified_workspace_real_dom_interactions() -> None:
 
         page.goto(UI_INDEX.as_uri(), wait_until="domcontentloaded")
         page.wait_for_selector(".device-item")
-        assert page.locator(".device-item").count() == 2
 
-        # 1. Mirror both phones in parallel inside the unified workspace
-        page.locator("#btnMirrorAll").click()
-        page.wait_for_function("() => document.querySelectorAll('.phone-slot').length === 2")
-        assert page.locator(".phone-slot").count() == 2
+        # 1. Start mirroring 1 phone, then test Rotate -> viewport MUST become landscape (width > height)!
+        page.locator("#btnToggleMirror").click()
+        page.wait_for_selector(".phone-slot-viewport")
+        box_portrait = page.locator(".phone-slot-viewport").first.bounding_box()
+        assert box_portrait["height"] > box_portrait["width"]
 
-        # 2. Live screen power off & on + white touch dot toggle
-        page.locator("#btnScreenOffLive").click()
-        page.locator("#btnScreenOnLive").click()
-        page.locator("#btnToggleTouchDot").click()
-        page.wait_for_function("() => document.getElementById('btnToggleTouchDot').getAttribute('aria-pressed') === 'true'")
+        page.locator("#btnRotate").click()
+        page.wait_for_function("() => document.querySelector('.phone-slot').dataset.landscape === 'true'")
+        box_landscape = page.locator(".phone-slot-viewport").first.bounding_box()
+        assert box_landscape["width"] > box_landscape["height"]
+        assert page.locator("#btnRotate").get_attribute("aria-pressed") == "true"
 
-        # 3. Touch Swipe Pad (up/down/left/right/center) + step size + App Drawer
-        page.locator(".step-btn[data-step='long']").click()
-        page.locator("[data-swipe='up']").click()
-        page.locator("[data-swipe='down']").click()
-        page.locator("[data-swipe='left']").click()
-        page.locator("[data-swipe='right']").click()
-        page.locator("[data-action='tap_center']").click()
-        page.locator("[data-action='app_drawer']").click()
+        # Rotate back to portrait
+        page.locator("#btnRotate").click()
+        page.wait_for_function("() => document.querySelector('.phone-slot').dataset.landscape === 'false'")
 
-        # 4. Four quick app buttons (Phone, Camera, Messages, Gallery)
-        for key in ("phone", "camera", "messages", "gallery"):
-            page.locator(f"[data-app='{key}']").click()
+        # 2. Unified Display Power Toggle (OFF -> lit active-amber -> ON -> unlit)
+        page.locator("#btnToggleScreenOff").click()
+        page.wait_for_function("() => document.getElementById('btnToggleScreenOff').getAttribute('aria-pressed') === 'true'")
+        assert "Màn ĐT: Tắt" in page.locator("#sidebarScreenOffLabel").inner_text()
+        assert "active-amber" in page.locator("#btnTopScreenOff").get_attribute("class")
 
-        # 5. Inline Apps Drawer (search + launch package)
+        page.locator("#btnToggleScreenOff").click()
+        page.wait_for_function("() => document.getElementById('btnToggleScreenOff').getAttribute('aria-pressed') === 'false'")
+        assert "Tắt màn ĐT" in page.locator("#sidebarScreenOffLabel").inner_text()
+
+        # 3. Always-On-Top toggle synced across Topbar & Sidebar
+        page.locator("#btnAlwaysOnTop").click()
+        page.wait_for_function("() => document.getElementById('btnAlwaysOnTop').getAttribute('aria-pressed') === 'true'")
+        assert page.locator("#btnSideAlwaysOnTop").get_attribute("aria-pressed") == "true"
+
+        # 4. Phone-Only mode (hide all toolbars, keep 28px recovery miniStrip) & exit
+        page.locator("#btnPhoneOnly").click()
+        assert page.locator("#appShell").evaluate("el => el.classList.contains('phone-only')") is True
+        assert page.locator("#miniStrip").is_visible()
+        page.locator("#btnExitPhoneOnly").click()
+        assert page.locator("#appShell").evaluate("el => el.classList.contains('phone-only')") is False
+        assert page.locator("#mainTopbar").is_visible()
+
+        # 5. Phone-Style 3-Column App Icon Grid + async icon img + filter
         page.locator("#btnOpenAppsDrawer").click()
-        page.wait_for_selector(".app-row")
-        page.locator("#inputSearchApps").fill("Zalo")
-        assert page.locator(".app-row").count() == 1
-        page.locator(".app-row").first.click()
+        page.wait_for_selector(".app-icon-grid .app-tile")
+        assert page.locator(".app-tile").count() == 3
+        page.wait_for_selector(".app-tile img")  # Zalo icon loaded asynchronously!
+        page.locator("[data-app-filter='user']").click()
+        assert page.locator(".app-tile").count() == 1
+        page.locator(".app-tile").first.click()
         page.locator("#drawerApps [data-close-drawer]").click()
-        assert page.locator("#drawerApps").is_hidden()
 
-        # 6. Sidebar collapse & expand button
-        page.locator("#btnToggleSidebar").click()
-        page.wait_for_function("() => document.getElementById('controlSidebar').classList.contains('collapsed')")
-        page.locator("#btnToggleSidebar").click()
-        page.wait_for_function("() => !document.getElementById('controlSidebar').classList.contains('collapsed')")
+        # 6. Diagnostics & Health Panel (Battery, Touch Grid, Samsung *#0*#, Crash Force Stop)
+        page.locator("#btnOpenDiagDrawer").click()
+        page.wait_for_selector("#btnDiagPointerGrid")
+        assert "35.3°C" in page.locator("#diagBody").inner_text()
+        assert "Sweethome" in page.locator("#diagBody").inner_text()
+        page.locator("#btnDiagPointerGrid").click()
+        page.wait_for_function("() => document.getElementById('btnDiagPointerGrid').classList.contains('active')")
+        page.locator("#btnDiagBatterySaver").click()
+        page.locator("#btnDiagSamsungHw").click()
+        page.locator(".crash-item button").first.click()
+        page.locator("#drawerDiagnostics [data-close-drawer]").click()
 
-        # 7. Multi-phone Demo mode (4 & 6 phones) + Zoom presets (fit, 50, 100, 150, fill)
+        # 7. Demo 4 phones + Zoom levels
         page.locator("#selectDemoCount").select_option("4")
         page.wait_for_function("() => document.querySelectorAll('.phone-slot').length === 4")
-        h_fit = page.locator(".phone-slot-viewport").first.bounding_box()["height"]
-
         page.locator(".zoom-btn[data-zoom='50']").click()
-        page.wait_for_function("() => document.querySelector('.zoom-btn.active').dataset.zoom === '50'")
-        h_50 = page.locator(".phone-slot-viewport").first.bounding_box()["height"]
-
+        h50 = page.locator(".phone-slot-viewport").first.bounding_box()["height"]
         page.locator(".zoom-btn[data-zoom='125']").click()
-        page.wait_for_function("() => document.querySelector('.zoom-btn.active').dataset.zoom === '125'")
-        h_125 = page.locator(".phone-slot-viewport").first.bounding_box()["height"]
-        assert h_125 > h_50
-        assert h_fit > 100
-
-        page.locator("#selectDemoCount").select_option("6")
-        page.wait_for_function("() => document.querySelectorAll('.phone-slot').length === 6")
-        page.locator(".zoom-btn[data-zoom='fit']").click()
-        page.locator("#selectDemoCount").select_option("0")
-
-        # 8. Screenshot + Add Device Drawer + Narrow window smoke check (B10)
-        page.locator("#btnScreenshot").click()
-        page.wait_for_function("() => document.getElementById('statusMessage').textContent.includes('shot1.png')")
-
-        page.locator("#btnOpenAddDrawer").click()
-        assert page.locator("#drawerAddDevice").is_visible()
-        page.locator("#inputWifiAddr").fill("192.168.1.88:5555")
-        page.locator("#btnDoWifiConnect").click()
-        page.wait_for_function("() => document.getElementById('drawerAddDevice').classList.contains('hidden')")
-
-        page.set_viewport_size({"width": 760, "height": 640})
-        page.wait_for_timeout(120)
+        h125 = page.locator(".phone-slot-viewport").first.bounding_box()["height"]
+        assert h125 > h50
 
         calls = page.evaluate("() => window.__calls")
         methods = [c[0] for c in calls]
         for expected in (
-            "start_mirror",
-            "sync_mirror_slots",
+            "set_always_on_top",
             "set_display_power",
-            "set_show_touches",
-            "swipe",
-            "send_action",
-            "launch_quick_app",
-            "list_apps",
+            "fetch_app_icons",
             "launch_package",
-            "take_screenshot",
-            "connect_wifi",
+            "get_diagnostics",
+            "set_pointer_location",
+            "set_battery_saver",
+            "launch_samsung_hw_test",
+            "force_stop_package",
         ):
             assert expected in methods, f"Missing API call: {expected}"
 

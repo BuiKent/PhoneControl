@@ -1,4 +1,4 @@
-# Phone Control v2
+# Phone Control v2.1
 
 Lightweight Windows desktop control studio for **`scrcpy`** and **ADB** — built with Python + `pywebview` (native Edge WebView2, zero Electron overhead).
 
@@ -6,22 +6,18 @@ Combines a collapsible control sidebar on the left with an auto-arranging multi-
 
 ---
 
-## What's New in v2.0
+## Highlights (v2.1)
 
-- **Unified Split-Screen Workspace**: Borderless `scrcpy` windows dock seamlessly into the right-hand workspace pane via Win32 owned-window synchronization (`window_host.py`). Collapse the left control sidebar anytime (`Ctrl+B`) to maximize screen space.
-- **Parallel Multi-Phone Auto-Grid + 7 Zoom Levels**: Mirror 1, 2, 3, 4, or more phones simultaneously. Automatic aspect-ratio-preserving grid layout maximizes visible screen area on desktop, plus quick Zoom presets (**Auto Fit**, **50%**, **75%**, **100%**, **125%**, **150%**, **Fill**) and a built-in **Demo Grid (2 / 3 / 4 / 6 devices)** preview.
-- **Live Physical Screen Off / On (Anytime)**: Turn off the physical phone display *mid-session* (even if accidentally woken) while keeping full PC mirroring & control via a lightweight headless `scrcpy` helper, plus one-click wake back on.
-- **Touch Swipe Pad & White Touch Dot**: Directional swipe buttons (Up / Down / Left / Right / Center Tap) with adjustable swipe stride (*Short / Medium / Long*) for precise scrolling without trackpad overshoot, plus a lightweight native white touch-indicator toggle (`show_touches`).
-- **All Apps Drawer & Quick Launchers**: Dedicated **All Apps** button (opens phone App Drawer), 4 one-click quick launchers (**Phone**, **Camera**, **Messages**, **Gallery**), and an inline searchable **Installed Apps** drawer (`scrcpy --list-apps`).
-
----
-
-## Core Features
-
-- **Multi-Device Auto-Detection & Saved Profiles**: Polls ADB automatically, merges live USB/Wi-Fi devices with saved profiles (`%LOCALAPPDATA%\PhoneControl\config.json`), supports custom nicknames, battery & Android version readout, and optional **Auto-Mirror on plug-in**.
-- **Smooth 60fps Hardware Mirroring (`scrcpy` v5+)**: 3 quality presets (*Lite 30fps*, *Balanced 60fps*, *High 16M*), Stay Awake, Audio forwarding, and one-click USB-to-Wi-Fi conversion (`tcpip 5555`).
-- **Full-Resolution Screenshot + Clipboard Copy**: Captures native PNG via `adb exec-out screencap -p`, validates PNG integrity (detecting `FLAG_SECURE`), saves to `Pictures\PhoneControl`, and copies directly to Windows Clipboard (`CF_DIB`) for instant `Ctrl+V` pasting.
-- **Hardware Keys & File Transfer**: Back, Home, Recents, Volume −/+, Mute, Power, Notification Shade, Screen Rotation, Push File / Install APK, and Android 11+ Wireless Pairing (`adb pair`).
+- **Unified Split Workspace & Phone-Only Mode**: Borderless `scrcpy` windows dock seamlessly into the right-hand workspace pane via Win32 owned-window synchronization (`window_host.py`). Collapse the left sidebar (`Ctrl+B`), pin **Always on Top** (`HWND_TOPMOST`), or switch to **Phone-Only Mode** (`Ctrl+Shift+H`) to hide all toolbars and keep only the phone screen plus a minimal 28px recovery strip.
+- **Live Auto-Rotating Landscape Frame**: Polls Android `SurfaceOrientation` automatically and resizes docked `scrcpy` frames between portrait and landscape to match the phone (both when clicking Rotate and when apps/videos auto-rotate).
+- **Unified Display Power Toggle (Off/On Anytime)**: Single toggle button with clear lit active state turns the physical phone display off/on mid-session via native `scrcpy` `Alt+O` / `Alt+Shift+O` (or headless fallback) without breaking mirroring.
+- **Phone-Style 3-Column App Icon Grid**: Displays installed apps in a phone-like icon grid with cached icons (`icon_cache.py`), curated vector icons for built-in Samsung/Android system apps, All/User filter, and instant search.
+- **Device Health & Diagnostics Panel**:
+  - **Battery & Performance**: Real-time battery %, temperature (°C), voltage (V), battery health, RAM & internal storage usage bars, Battery Saver toggle, and background process cleanup (`am kill-all`).
+  - **Screen & Touch Fault Testing**: One-click **Touch Grid (`pointer_location`)** overlay to spot dead touch zones / ghost touches, plus **Samsung Hardware Test (`*#0*#`)** launcher for RGB dead-pixel & sensor checks.
+  - **Network & Crash/ANR Inspector**: Wi-Fi SSID, RSSI (dBm), link speed (Mbps), Internet ping latency, and recent app crashes/ANRs (`dumpsys dropbox`) with one-click **Force Stop**.
+- **Parallel Multi-Phone Auto-Grid + 7 Zoom Levels + Demo Mode**: Mirror multiple phones simultaneously with automatic aspect-ratio-preserving grid layout, 7 Zoom presets (`Auto Fit`, `50%`, `75%`, `100%`, `125%`, `150%`, `Fill`), and built-in **Demo Grid (2 / 3 / 4 / 6 devices)**.
+- **Touch Swipe Pad & Quick Launchers**: Directional swipe pad (Up/Down/Left/Right/Center Tap) with 3 stride levels calibrated from `wm size` (preferring `Override size`), white touch-dot toggle (`show_touches`), All Apps drawer button, and 4 quick launchers (**Phone**, **Camera**, **Messages**, **Gallery**).
 
 ---
 
@@ -52,7 +48,7 @@ powershell -ExecutionPolicy Bypass -File scripts\create_desktop_shortcut.ps1
 
 ---
 
-## Development & Verification
+## Development & Tests
 
 ```powershell
 pip install -r requirements-dev.txt
